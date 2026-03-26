@@ -17,5 +17,7 @@ public class WalletResponse {
     private BigDecimal balance;
     private String currency;
     private boolean active;
+    private BigDecimal dailyTransferLimit;
+    private BigDecimal dailyTransferUsed;
     private LocalDateTime createdAt;
 }

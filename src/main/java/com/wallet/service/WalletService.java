@@ -277,6 +277,8 @@ public class WalletService {
         ledgerEntryRepository.save(entry);
     }
 
+    private static final BigDecimal DAILY_TRANSFER_LIMIT = new BigDecimal("300000.00");
+
     private WalletResponse toWalletResponse(Wallet wallet, User user) {
         return WalletResponse.builder()
                 .walletId(wallet.getId())
@@ -285,6 +287,8 @@ public class WalletService {
                 .balance(wallet.getBalance())
                 .currency(wallet.getCurrency())
                 .active(wallet.isActive())
+                .dailyTransferLimit(DAILY_TRANSFER_LIMIT)
+                .dailyTransferUsed(BigDecimal.ZERO)
                 .createdAt(wallet.getCreatedAt())
                 .build();
     }
