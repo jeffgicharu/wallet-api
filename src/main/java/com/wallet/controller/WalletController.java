@@ -62,11 +62,17 @@ public class WalletController {
     }
 
     @GetMapping("/transactions")
-    @Operation(summary = "Transaction history", description = "Paginated list of all transactions")
+    @Operation(summary = "Transaction history", description = "Paginated list of all transactions, filterable by type")
     public ResponseEntity<ApiResponse<Page<TransactionResponse>>> getTransactions(
             Authentication auth,
+            @RequestParam(required = false) com.wallet.enums.TransactionType type,
             @PageableDefault(size = 20) Pageable pageable) {
-        Page<TransactionResponse> page = walletService.getTransactions(auth.getName(), pageable);
+        Page<TransactionResponse> page;
+        if (type != null) {
+            page = walletService.getTransactionsByType(auth.getName(), type, pageable);
+        } else {
+            page = walletService.getTransactions(auth.getName(), pageable);
+        }
         return ResponseEntity.ok(ApiResponse.success("Transactions retrieved", page));
     }
 

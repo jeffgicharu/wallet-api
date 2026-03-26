@@ -215,6 +215,20 @@ public class WalletService {
                 .map(this::toTransactionResponse);
     }
 
+    public Page<TransactionResponse> getTransactionsByType(String email,
+            com.wallet.enums.TransactionType type, Pageable pageable) {
+        Wallet wallet = getWalletByEmail(email);
+        return transactionRepository.findByWalletIdAndType(wallet.getId(), type, pageable)
+                .map(this::toTransactionResponse);
+    }
+
+    public Page<TransactionResponse> getTransactionsByDateRange(String email,
+            java.time.LocalDateTime from, java.time.LocalDateTime to, Pageable pageable) {
+        Wallet wallet = getWalletByEmail(email);
+        return transactionRepository.findByWalletIdAndDateRange(wallet.getId(), from, to, pageable)
+                .map(this::toTransactionResponse);
+    }
+
     // ─── LEDGER / STATEMENT ─────────────────────────────────────────
 
     public Page<LedgerEntry> getStatement(String email, Pageable pageable) {
