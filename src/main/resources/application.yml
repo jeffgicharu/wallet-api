@@ -1,0 +1,74 @@
+spring:
+  application:
+    name: wallet-api
+
+  # Default profile: H2 in-memory (zero setup, just run)
+  datasource:
+    url: jdbc:h2:mem:walletdb;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.H2Dialect
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+# JWT Configuration
+jwt:
+  secret: 4f7a2b9c8d1e3f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a
+  expiration-ms: 86400000  # 24 hours
+
+# Wallet Configuration
+wallet:
+  default-currency: KES
+  transfer-fee-percent: 1.0
+  max-transfer-amount: 500000.00
+  min-transfer-amount: 10.00
+
+# OpenAPI
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+server:
+  port: 8080
+
+---
+# PostgreSQL profile (activate with --spring.profiles.active=postgres)
+spring:
+  config:
+    activate:
+      on-profile: postgres
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/walletdb
+    driver-class-name: org.postgresql.Driver
+    username: postgres
+    password: postgres
+
+  h2:
+    console:
+      enabled: false
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
