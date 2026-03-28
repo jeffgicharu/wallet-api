@@ -1,8 +1,8 @@
 # Wallet API
 
-This is a mobile money wallet — think M-Pesa's backend. Users register, get a wallet, and can deposit, withdraw, or send money to each other by phone number.
+This is a mobile money wallet, similar to M-Pesa's backend. Users register, get a wallet, and can deposit, withdraw, or send money to each other by phone number.
 
-The interesting part isn't the CRUD — it's the things that go wrong with money. What happens when a transfer request is sent twice because of a network glitch? What if two transfers hit the same wallet at the same time? What if you need to prove exactly where every shilling went at end of day? This project handles all of that.
+The interesting part isn't the CRUD. It's the things that go wrong with money. What happens when a transfer request is sent twice because of a network glitch? What if two transfers hit the same wallet at the same time? What if you need to prove exactly where every shilling went at end of day? This project handles all of that.
 
 ## What It Does
 
@@ -10,19 +10,19 @@ The interesting part isn't the CRUD — it's the things that go wrong with money
 - **Deposit and withdraw** funds (withdrawals require a 4-digit PIN)
 - **Send money** to any registered user by phone number, with automatic fee calculation
 - **Transaction history** with filtering by type (deposits, withdrawals, transfers)
-- **Account statements** showing a full double-entry ledger — every debit has a matching credit
+- **Account statements** showing a full double-entry ledger. Every debit has a matching credit
 
 ## How Money Stays Safe
 
 A few things make this different from a basic wallet tutorial:
 
-**Double-entry bookkeeping** — When Alice sends Bob KES 5,000, the system doesn't just subtract from Alice and add to Bob. It creates four ledger entries: a DEBIT on Alice's account, a CREDIT on Bob's account, and separate entries for the transfer fee. At any point, you can run the statement endpoint and verify that debits equal credits. This is how real financial systems work.
+**Double-entry bookkeeping.** When Alice sends Bob KES 5,000, the system doesn't just subtract from Alice and add to Bob. It creates four ledger entries: a DEBIT on Alice's account, a CREDIT on Bob's account, and separate entries for the transfer fee. At any point, you can run the statement endpoint and verify that debits equal credits. This is how real financial systems work.
 
-**Idempotency** — Every request that moves money requires an `idempotencyKey`. If the client retries the same request (because the network dropped the response), the system recognizes the key and returns the original result instead of processing the transfer again. No double charges.
+**Idempotency.** Every request that moves money requires an `idempotencyKey`. If the client retries the same request (because the network dropped the response), the system recognizes the key and returns the original result instead of processing the transfer again. No double charges.
 
-**Optimistic locking** — The wallet entity uses `@Version`. If two concurrent requests try to modify the same balance, the second one fails with a conflict instead of silently corrupting the data.
+**Optimistic locking.** The wallet entity uses `@Version`. If two concurrent requests try to modify the same balance, the second one fails with a conflict instead of silently corrupting the data.
 
-**PIN security** — PINs are bcrypt-hashed. They're validated on withdrawals and transfers but never stored or returned in plaintext.
+**PIN security.** PINs are bcrypt-hashed. They're validated on withdrawals and transfers but never stored or returned in plaintext.
 
 ## Quick Start
 
