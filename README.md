@@ -1,114 +1,90 @@
 # Wallet API
 
-A customer wallet system modeled after M-Pesa's core transaction engine. Handles user registration, deposits, withdrawals, and peer-to-peer transfers with transaction fees, double-entry bookkeeping, and idempotent operations — built on the same patterns that power mobile money platforms serving millions of daily transactions.
+This is a mobile money wallet — think M-Pesa's backend. Users register, get a wallet, and can deposit, withdraw, or send money to each other by phone number.
 
-## Why This Design
+The interesting part isn't the CRUD — it's the things that go wrong with money. What happens when a transfer request is sent twice because of a network glitch? What if two transfers hit the same wallet at the same time? What if you need to prove exactly where every shilling went at end of day? This project handles all of that.
 
-Mobile money wallets fail in specific ways: lost money from partial transfers, double-debits from retried requests, and balances that don't reconcile at end of day. Every design choice here addresses a real failure mode:
+## What It Does
 
-| Problem | Solution | Implementation |
-|---|---|---|
-| Retry causes double-debit | Idempotency keys | Each request carries a unique key; duplicates return the original result |
-| Transfer partially completes | Double-entry bookkeeping | Every movement creates balanced DEBIT + CREDIT ledger entries |
-| Concurrent transfers corrupt balance | Optimistic locking | `@Version` on Wallet entity — concurrent writes fail safely and retry |
-| Stolen PIN drains account | Bcrypt-hashed PINs | PINs stored as bcrypt hashes, never plaintext |
-| Unauthorized access | JWT stateless auth | Token-based authentication, no server-side sessions |
-| Fee disputes | Configurable fee structure | Transfer fees recorded as separate ledger-tracked transactions |
+- **Register and login** with JWT authentication
+- **Deposit and withdraw** funds (withdrawals require a 4-digit PIN)
+- **Send money** to any registered user by phone number, with automatic fee calculation
+- **Transaction history** with filtering by type (deposits, withdrawals, transfers)
+- **Account statements** showing a full double-entry ledger — every debit has a matching credit
 
-## Tech Stack
+## How Money Stays Safe
 
-| Layer | Technology |
-|---|---|
-| Framework | Spring Boot 3.2 |
-| Language | Java 17 |
-| Auth | Spring Security + JWT (jjwt) |
-| Database | PostgreSQL (H2 for dev) |
-| ORM | Spring Data JPA / Hibernate |
-| API Docs | SpringDoc OpenAPI (Swagger UI) |
-| Containers | Docker + docker-compose |
-| CI/CD | GitHub Actions |
+A few things make this different from a basic wallet tutorial:
 
-## API Endpoints
+**Double-entry bookkeeping** — When Alice sends Bob KES 5,000, the system doesn't just subtract from Alice and add to Bob. It creates four ledger entries: a DEBIT on Alice's account, a CREDIT on Bob's account, and separate entries for the transfer fee. At any point, you can run the statement endpoint and verify that debits equal credits. This is how real financial systems work.
 
-| Method | Endpoint | Description | Auth |
-|---|---|---|---|
-| POST | `/api/auth/register` | Register user + create wallet | No |
-| POST | `/api/auth/login` | Authenticate, receive JWT | No |
-| GET | `/api/wallet` | Balance, limits, wallet info | JWT |
-| POST | `/api/wallet/deposit` | Deposit funds | JWT |
-| POST | `/api/wallet/withdraw` | Withdraw (requires PIN) | JWT |
-| POST | `/api/wallet/transfer` | P2P transfer (requires PIN) | JWT |
-| GET | `/api/wallet/transactions` | Paginated history, filterable by type | JWT |
-| GET | `/api/wallet/statement` | Double-entry ledger statement | JWT |
+**Idempotency** — Every request that moves money requires an `idempotencyKey`. If the client retries the same request (because the network dropped the response), the system recognizes the key and returns the original result instead of processing the transfer again. No double charges.
 
-## Transaction Flow
+**Optimistic locking** — The wallet entity uses `@Version`. If two concurrent requests try to modify the same balance, the second one fails with a conflict instead of silently corrupting the data.
 
-```
-Client                     Wallet API                          Database
-  |                            |                                  |
-  |-- POST /transfer --------->|                                  |
-  |   (JWT + PIN + idem key)   |                                  |
-  |                            |-- verify JWT -------------------->|
-  |                            |-- validate PIN (bcrypt) --------->|
-  |                            |-- check idempotency key --------->|
-  |                            |-- check sender balance ---------->|
-  |                            |-- calculate fee ----------------->|
-  |                            |                                  |
-  |                            |-- BEGIN TRANSACTION              |
-  |                            |   debit sender (amount + fee)     |
-  |                            |   credit receiver (amount)        |
-  |                            |   create DEBIT ledger entry       |
-  |                            |   create CREDIT ledger entry      |
-  |                            |   record fee transaction          |
-  |                            |-- COMMIT                         |
-  |                            |                                  |
-  |<-- 200 TransferResponse ---|                                  |
-```
+**PIN security** — PINs are bcrypt-hashed. They're validated on withdrawals and transfers but never stored or returned in plaintext.
 
-## Running
+## Quick Start
 
 ```bash
 mvn spring-boot:run
-# Swagger UI: http://localhost:8080/swagger-ui.html
+# Open http://localhost:8080/swagger-ui.html
 ```
 
-### With Docker
+Or with Docker (includes PostgreSQL):
 
 ```bash
-docker compose up   # PostgreSQL + wallet-api
+docker compose up
 ```
 
-## Usage
+## Try It Out
 
 ```bash
-# Register
+# 1. Register a user
 curl -X POST http://localhost:8080/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"fullName":"Alice Wanjiku","email":"alice@example.com","phoneNumber":"+254700000001","password":"pass123","pin":"1234"}'
 
-# Login (save token)
+# 2. Login and grab the token
 TOKEN=$(curl -s -X POST http://localhost:8080/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"alice@example.com","password":"pass123"}' | jq -r '.data.token')
 
-# Deposit
+# 3. Deposit some money
 curl -X POST http://localhost:8080/api/wallet/deposit \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -d '{"amount":50000,"idempotencyKey":"dep-001"}'
 
-# Transfer
+# 4. Send money to another user
 curl -X POST http://localhost:8080/api/wallet/transfer \
   -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
   -d '{"recipientPhone":"+254700000002","amount":5000,"pin":"1234","idempotencyKey":"trf-001"}'
 ```
 
-## Testing
+## API Reference
+
+| Method | Endpoint | What it does | Auth |
+|---|---|---|---|
+| POST | `/api/auth/register` | Create account + wallet | No |
+| POST | `/api/auth/login` | Get JWT token | No |
+| GET | `/api/wallet` | Check balance and wallet info | JWT |
+| POST | `/api/wallet/deposit` | Add funds | JWT |
+| POST | `/api/wallet/withdraw` | Withdraw (needs PIN) | JWT |
+| POST | `/api/wallet/transfer` | Send money (needs PIN) | JWT |
+| GET | `/api/wallet/transactions` | Transaction history (filterable) | JWT |
+| GET | `/api/wallet/statement` | Double-entry ledger | JWT |
+
+## Built With
+
+Spring Boot 3.2, Java 17, Spring Security + JWT, Spring Data JPA, PostgreSQL (H2 for dev), Docker, GitHub Actions CI.
+
+## Tests
 
 ```bash
 mvn test   # 9 tests
 ```
 
-Covers: deposit + balance update, withdrawal with valid/invalid PIN, insufficient balance, P2P transfer with fees, idempotency deduplication, self-transfer prevention, unknown recipient handling.
+Covers deposits, withdrawals with valid/invalid PIN, insufficient balance, P2P transfers with fee calculation, idempotency deduplication, self-transfer prevention, and unknown recipient handling.
 
 ## License
 
