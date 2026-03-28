@@ -229,6 +229,86 @@ public class WalletService {
                 .map(this::toTransactionResponse);
     }
 
+    // ─── REVERSAL ───────────────────────────────────────────────────
+
+    @Transactional
+    public TransactionResponse reverseTransaction(String reference, String reason) {
+        Transaction original = transactionRepository.findByReference(reference)
+                .orElseThrow(() -> new IllegalArgumentException("Transaction not found: " + reference));
+
+        if (original.getStatus() == TransactionStatus.REVERSED) {
+            throw new IllegalStateException("Transaction already reversed");
+        }
+        if (original.getStatus() != TransactionStatus.COMPLETED) {
+            throw new IllegalStateException("Only completed transactions can be reversed. Current: " + original.getStatus());
+        }
+        if (original.getType() == TransactionType.FEE) {
+            throw new IllegalStateException("Fee transactions cannot be reversed directly");
+        }
+
+        BigDecimal amount = original.getAmount();
+        String reversalRef = "REV-" + reference;
+
+        if (original.getType() == TransactionType.TRANSFER) {
+            Wallet sender = original.getSenderWallet();
+            Wallet receiver = original.getReceiverWallet();
+            BigDecimal fee = original.getFee() != null ? original.getFee() : BigDecimal.ZERO;
+
+            BigDecimal senderBefore = sender.getBalance();
+            sender.setBalance(senderBefore.add(amount).add(fee));
+            walletRepository.save(sender);
+
+            BigDecimal receiverBefore = receiver.getBalance();
+            if (receiverBefore.compareTo(amount) < 0) {
+                throw new InsufficientBalanceException("Receiver has insufficient balance for reversal");
+            }
+            receiver.setBalance(receiverBefore.subtract(amount));
+            walletRepository.save(receiver);
+
+            createLedgerEntry(original, sender, EntryType.CREDIT, amount.add(fee), senderBefore, sender.getBalance());
+            createLedgerEntry(original, receiver, EntryType.DEBIT, amount, receiverBefore, receiver.getBalance());
+
+        } else if (original.getType() == TransactionType.DEPOSIT) {
+            Wallet wallet = original.getReceiverWallet();
+            BigDecimal before = wallet.getBalance();
+            if (before.compareTo(amount) < 0) {
+                throw new InsufficientBalanceException("Insufficient balance for deposit reversal");
+            }
+            wallet.setBalance(before.subtract(amount));
+            walletRepository.save(wallet);
+            createLedgerEntry(original, wallet, EntryType.DEBIT, amount, before, wallet.getBalance());
+
+        } else if (original.getType() == TransactionType.WITHDRAWAL) {
+            Wallet wallet = original.getSenderWallet();
+            BigDecimal before = wallet.getBalance();
+            wallet.setBalance(before.add(amount));
+            walletRepository.save(wallet);
+            createLedgerEntry(original, wallet, EntryType.CREDIT, amount, before, wallet.getBalance());
+        }
+
+        original.setStatus(TransactionStatus.REVERSED);
+        transactionRepository.save(original);
+
+        Transaction reversal = Transaction.builder()
+                .reference(reversalRef)
+                .type(original.getType())
+                .status(TransactionStatus.COMPLETED)
+                .amount(amount)
+                .senderWallet(original.getReceiverWallet())
+                .receiverWallet(original.getSenderWallet())
+                .description("Reversal of " + reference + ": " + (reason != null ? reason : "No reason"))
+                .build();
+        transactionRepository.save(reversal);
+
+        return toTransactionResponse(reversal);
+    }
+
+    public TransactionResponse getTransactionByReference(String reference) {
+        Transaction txn = transactionRepository.findByReference(reference)
+                .orElseThrow(() -> new IllegalArgumentException("Transaction not found: " + reference));
+        return toTransactionResponse(txn);
+    }
+
     // ─── LEDGER / STATEMENT ─────────────────────────────────────────
 
     public Page<LedgerEntry> getStatement(String email, Pageable pageable) {

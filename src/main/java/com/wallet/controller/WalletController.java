@@ -84,4 +84,20 @@ public class WalletController {
         Page<LedgerEntry> page = walletService.getStatement(auth.getName(), pageable);
         return ResponseEntity.ok(ApiResponse.success("Statement retrieved", page));
     }
+
+    @PostMapping("/transactions/{reference}/reverse")
+    @Operation(summary = "Reverse a transaction", description = "Reverses a completed transaction and refunds all parties")
+    public ResponseEntity<ApiResponse<TransactionResponse>> reverse(
+            @PathVariable String reference,
+            @RequestParam(required = false) String reason) {
+        TransactionResponse response = walletService.reverseTransaction(reference, reason);
+        return ResponseEntity.ok(ApiResponse.success("Transaction reversed", response));
+    }
+
+    @GetMapping("/transactions/{reference}")
+    @Operation(summary = "Look up transaction by reference")
+    public ResponseEntity<ApiResponse<TransactionResponse>> getTransaction(@PathVariable String reference) {
+        return ResponseEntity.ok(ApiResponse.success("Transaction found",
+                walletService.getTransactionByReference(reference)));
+    }
 }
