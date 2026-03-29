@@ -335,9 +335,34 @@ public class WalletService {
                 .orElseThrow(() -> new IllegalArgumentException("Wallet not found"));
     }
 
+    private static final int MAX_PIN_ATTEMPTS = 3;
+    private static final int LOCKOUT_MINUTES = 15;
+
     private void validatePin(User user, String rawPin) {
+        if (user.isPinLocked()) {
+            throw new IllegalStateException("Account is locked due to too many failed PIN attempts. Try again after "
+                    + user.getPinLockedUntil().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")));
+        }
+
         if (!passwordEncoder.matches(rawPin, user.getPin())) {
-            throw new InvalidPinException();
+            user.setFailedPinAttempts(user.getFailedPinAttempts() + 1);
+            if (user.getFailedPinAttempts() >= MAX_PIN_ATTEMPTS) {
+                user.setPinLockedUntil(java.time.LocalDateTime.now().plusMinutes(LOCKOUT_MINUTES));
+            }
+            userRepository.save(user);
+            int remaining = MAX_PIN_ATTEMPTS - user.getFailedPinAttempts();
+            if (remaining > 0) {
+                throw new InvalidPinException();
+            } else {
+                throw new IllegalStateException("Account locked for " + LOCKOUT_MINUTES
+                        + " minutes after " + MAX_PIN_ATTEMPTS + " failed PIN attempts");
+            }
+        }
+
+        if (user.getFailedPinAttempts() > 0) {
+            user.setFailedPinAttempts(0);
+            user.setPinLockedUntil(null);
+            userRepository.save(user);
         }
     }
 

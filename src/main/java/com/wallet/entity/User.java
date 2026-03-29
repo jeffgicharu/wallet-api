@@ -31,6 +31,10 @@ public class User {
     @Column(nullable = false)
     private String pin;
 
+    private int failedPinAttempts;
+
+    private LocalDateTime pinLockedUntil;
+
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private Wallet wallet;
 
@@ -40,5 +44,10 @@ public class User {
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
+        failedPinAttempts = 0;
+    }
+
+    public boolean isPinLocked() {
+        return pinLockedUntil != null && LocalDateTime.now().isBefore(pinLockedUntil);
     }
 }
