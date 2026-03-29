@@ -331,8 +331,12 @@ public class WalletService {
     private Wallet getWalletByEmail(String email) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("User not found"));
-        return walletRepository.findByUserId(user.getId())
+        Wallet wallet = walletRepository.findByUserId(user.getId())
                 .orElseThrow(() -> new IllegalArgumentException("Wallet not found"));
+        if (!wallet.isActive()) {
+            throw new IllegalStateException("Wallet is frozen. Contact support.");
+        }
+        return wallet;
     }
 
     private static final int MAX_PIN_ATTEMPTS = 3;

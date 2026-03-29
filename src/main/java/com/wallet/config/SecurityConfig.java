@@ -33,6 +33,7 @@ public class SecurityConfig {
                     "/api-docs/**",
                     "/h2-console/**"
                 ).permitAll()
+                .requestMatchers("/api/admin/**").authenticated()
                 .anyRequest().authenticated()
             )
             .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
