@@ -9,10 +9,19 @@ import org.springframework.data.repository.query.Param;
 
 import com.wallet.enums.TransactionType;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
+
+    @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t WHERE t.senderWallet.id = :walletId AND t.type = 'TRANSFER' AND t.status = 'COMPLETED' AND t.createdAt >= :since")
+    BigDecimal sumTransfersSince(@Param("walletId") Long walletId, @Param("since") LocalDateTime since);
+
+    long count();
+
+    @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t WHERE t.status = 'COMPLETED'")
+    BigDecimal sumAllCompleted();
 
     Optional<Transaction> findByReference(String reference);
 

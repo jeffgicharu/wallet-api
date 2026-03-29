@@ -146,6 +146,16 @@ public class WalletService {
             throw new IllegalArgumentException("Maximum transfer amount is " + maxTransferAmount);
         }
 
+        // Daily limit check
+        BigDecimal todayTotal = transactionRepository.sumTransfersSince(
+                senderWallet.getId(), java.time.LocalDate.now().atStartOfDay());
+        if (todayTotal.add(amount).compareTo(DAILY_TRANSFER_LIMIT) > 0) {
+            BigDecimal remaining = DAILY_TRANSFER_LIMIT.subtract(todayTotal).max(BigDecimal.ZERO);
+            throw new IllegalArgumentException(String.format(
+                    "Daily transfer limit exceeded. Limit: %s, Used today: %s, Remaining: %s",
+                    DAILY_TRANSFER_LIMIT, todayTotal, remaining));
+        }
+
         // Calculate fee
         BigDecimal fee = amount.multiply(BigDecimal.valueOf(transferFeePercent))
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
@@ -368,7 +378,8 @@ public class WalletService {
                 .currency(wallet.getCurrency())
                 .active(wallet.isActive())
                 .dailyTransferLimit(DAILY_TRANSFER_LIMIT)
-                .dailyTransferUsed(BigDecimal.ZERO)
+                .dailyTransferUsed(transactionRepository.sumTransfersSince(
+                        wallet.getId(), java.time.LocalDate.now().atStartOfDay()))
                 .createdAt(wallet.getCreatedAt())
                 .build();
     }
