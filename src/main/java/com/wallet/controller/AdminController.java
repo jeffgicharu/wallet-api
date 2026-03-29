@@ -5,6 +5,7 @@ import com.wallet.dto.response.WalletResponse;
 import com.wallet.entity.AuditLog;
 import com.wallet.entity.User;
 import com.wallet.entity.Wallet;
+import com.wallet.repository.LedgerEntryRepository;
 import com.wallet.repository.TransactionRepository;
 import com.wallet.repository.UserRepository;
 import com.wallet.repository.WalletRepository;
@@ -31,6 +32,7 @@ public class AdminController {
     private final UserRepository userRepository;
     private final WalletRepository walletRepository;
     private final TransactionRepository transactionRepository;
+    private final LedgerEntryRepository ledgerEntryRepository;
     private final AuditService auditService;
 
     @GetMapping("/users/search")
@@ -131,5 +133,47 @@ public class AdminController {
             @PathVariable String targetId) {
         return ResponseEntity.ok(ApiResponse.success("Audit log",
                 auditService.getByTarget(targetType, targetId)));
+    }
+
+    @GetMapping("/reconcile")
+    @Operation(summary = "System-wide reconciliation", description = "Verify that total debits equal total credits across the entire ledger")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> reconcile() {
+        BigDecimal totalDebits = ledgerEntryRepository.sumAllDebits();
+        BigDecimal totalCredits = ledgerEntryRepository.sumAllCredits();
+        BigDecimal difference = totalDebits.subtract(totalCredits).abs();
+        boolean balanced = difference.compareTo(new BigDecimal("0.01")) < 0;
+
+        auditService.log("RECONCILIATION", "SYSTEM", "GLOBAL", "admin",
+                "Balanced: " + balanced + ", difference: " + difference);
+
+        return ResponseEntity.ok(ApiResponse.success(balanced ? "Books are balanced" : "DISCREPANCY DETECTED",
+                Map.of(
+                        "totalDebits", totalDebits,
+                        "totalCredits", totalCredits,
+                        "difference", difference,
+                        "balanced", balanced
+                )));
+    }
+
+    @GetMapping("/reconcile/wallet/{phone}")
+    @Operation(summary = "Per-wallet reconciliation")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> reconcileWallet(@PathVariable String phone) {
+        Wallet wallet = walletRepository.findByUserPhoneNumber(phone)
+                .orElseThrow(() -> new IllegalArgumentException("Wallet not found: " + phone));
+        BigDecimal debits = ledgerEntryRepository.sumDebitsByWallet(wallet.getId());
+        BigDecimal credits = ledgerEntryRepository.sumCreditsByWallet(wallet.getId());
+        BigDecimal netBalance = credits.subtract(debits);
+        boolean matches = netBalance.compareTo(wallet.getBalance()) == 0;
+
+        return ResponseEntity.ok(ApiResponse.success(
+                matches ? "Wallet balance matches ledger" : "BALANCE MISMATCH",
+                Map.of(
+                        "phone", phone,
+                        "walletBalance", wallet.getBalance(),
+                        "ledgerNetBalance", netBalance,
+                        "totalDebits", debits,
+                        "totalCredits", credits,
+                        "matches", matches
+                )));
     }
 }
