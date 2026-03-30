@@ -1,0 +1,45 @@
+{
+  "dashboard": {
+    "title": "wallet-api Dashboard",
+    "tags": ["wallet-api", "spring-boot"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "title": "Request Rate",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "targets": [{"expr": "rate(http_server_requests_seconds_count{application=\"wallet-api\"}[5m])", "legendFormat": "{{method}} {{uri}}"}]
+      },
+      {
+        "title": "Response Time (P95)",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "targets": [{"expr": "histogram_quantile(0.95, rate(http_server_requests_seconds_bucket{application=\"wallet-api\"}[5m]))", "legendFormat": "P95"}]
+      },
+      {
+        "title": "Error Rate",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 8},
+        "targets": [{"expr": "rate(http_server_requests_seconds_count{application=\"wallet-api\",status=~\"5..\"}[5m])"}]
+      },
+      {
+        "title": "JVM Memory",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+        "targets": [{"expr": "jvm_memory_used_bytes{application=\"wallet-api\"}", "legendFormat": "{{area}} {{id}}"}]
+      },
+      {
+        "title": "wallet.deposits.total",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 4, "x": 6, "y": 8},
+        "targets": [{"expr": "wallet.deposits.total_total"}]
+      },
+      {
+        "title": "wallet.transfers.total",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 4, "x": 10, "y": 8},
+        "targets": [{"expr": "wallet.transfers.total_total"}]
+      }
+    ]
+  }
+}
