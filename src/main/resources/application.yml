@@ -84,3 +84,17 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+
+# OpenTelemetry Tracing
+management.tracing:
+  sampling:
+    probability: 1.0
+  propagation:
+    type: w3c
+
+otel:
+  exporter:
+    otlp:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318}
+  service:
+    name: wallet-api
