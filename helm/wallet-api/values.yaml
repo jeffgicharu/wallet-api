@@ -1,0 +1,21 @@
+replicaCount: 2
+image:
+  repository: wallet-api
+  tag: latest
+service:
+  type: ClusterIP
+  port: 8080
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "250m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+database:
+  url: "jdbc:postgresql://postgres:5432/walletdb"
+  username: "postgres"
+  password: "postgres"
+prometheus:
+  enabled: true
+  path: /actuator/prometheus

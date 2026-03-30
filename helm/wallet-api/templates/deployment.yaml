@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+      annotations:
+        {{- if .Values.prometheus.enabled }}
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "{{ .Values.prometheus.path }}"
+        prometheus.io/port: "{{ .Values.service.port }}"
+        {{- end }}
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports:
+            - containerPort: {{ .Values.service.port }}
+          env:
+            - name: SPRING_DATASOURCE_URL
+              value: "{{ .Values.database.url }}"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: {{ .Values.service.port }}
+            initialDelaySeconds: 30
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
