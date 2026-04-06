@@ -121,7 +121,7 @@ curl http://localhost:8080/api/admin/reconcile/wallet/+254700000001 \
 
 ## Built With
 
-Spring Boot 3.2, Java 17, Spring Security + JWT, Spring Data JPA, PostgreSQL (H2 for dev), Docker, GitHub Actions CI.
+Spring Boot 3.2, Java 17, Spring Security + JWT, Spring Data JPA, PostgreSQL (H2 for dev), Docker, Kubernetes + Helm, GitHub Actions CI, Prometheus metrics.
 
 ## Tests
 
@@ -132,6 +132,23 @@ mvn test   # 21 tests
 **Unit tests (9):** deposit and balance update, withdrawal with valid/invalid PIN, insufficient balance, P2P transfer with fee calculation, idempotency deduplication, self-transfer prevention, unknown recipient handling.
 
 **Integration tests (12):** full auth flow, duplicate registration rejection, deposit through HTTP, transfer through HTTP, unauthenticated request rejection, transaction lookup by reference, deposit reversal with balance verification, admin stats, wallet freeze blocking transactions, per-wallet reconciliation, wrong PIN through HTTP, daily limit info in wallet response.
+
+## Performance Testing
+
+JMeter test plans are in `src/test/jmeter/`. The test plan simulates:
+
+- **50 concurrent users** running the auth flow (register + login) with 10-second ramp-up
+- **100 concurrent users** performing wallet operations (login, check balance, deposit, transaction history) for 2 minutes
+- Response time assertions: 500ms for balance checks, 1s for deposits, 2s for registration
+- Dynamic data generation with unique emails, phone numbers, and idempotency keys per thread
+
+Run with: `jmeter -n -t src/test/jmeter/wallet-api-load-test.jmx -l results.jtl`
+
+## Code Quality
+
+- **JaCoCo** code coverage with enforcement threshold, report uploaded as CI artifact
+- **SonarCloud** static analysis for code smells, bugs, vulnerabilities, and coverage tracking
+- **OWASP Dependency Check** for known CVEs in third-party libraries
 
 ## License
 
