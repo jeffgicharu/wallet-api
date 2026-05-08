@@ -2,6 +2,22 @@
 
 This is a mobile money wallet, similar to M-Pesa's backend. Users register, get a wallet, and can deposit, withdraw, or send money to each other by phone number.
 
+## Live Demo
+
+- **API:** https://api.wallet.jeffgicharu.com
+- **Web app:** https://wallet.jeffgicharu.com
+- **Swagger UI:** https://api.wallet.jeffgicharu.com/swagger-ui.html
+
+Demo accounts (state resets daily at 03:00 UTC):
+
+| Email | Password | PIN | Approx. balance |
+|---|---|---|---|
+| `alice@demo.local` | `pass1234` | `1234` | KES 50,000 |
+| `bob@demo.local`   | `pass1234` | `1234` | KES 25,000 |
+| `carol@demo.local` | `pass1234` | `1234` | KES 10,000 |
+
+This is a public demo. Do not use real PII, real money, or real credentials.
+
 The interesting part isn't the CRUD. It's the things that go wrong with money. What happens when a transfer request is sent twice because of a network glitch? What if two transfers hit the same wallet at the same time? What if someone brute-forces a PIN? What if a transaction needs to be reversed after the fact? What if the books don't balance at end of day? This project handles all of that.
 
 ## What It Does
