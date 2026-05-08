@@ -4,9 +4,9 @@ This is a mobile money wallet, similar to M-Pesa's backend. Users register, get 
 
 ## Live Demo
 
-- **API:** https://api.wallet.jeffgicharu.com
+- **API:** https://wallet-api.jeffgicharu.com
 - **Web app:** https://wallet.jeffgicharu.com
-- **Swagger UI:** https://api.wallet.jeffgicharu.com/swagger-ui.html
+- **Swagger UI:** https://wallet-api.jeffgicharu.com/swagger-ui.html
 
 Demo accounts (state resets daily at 03:00 UTC):
 
