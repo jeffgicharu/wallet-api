@@ -1,0 +1,821 @@
+{
+  "consumer": {
+    "name": "wallet-app"
+  },
+  "interactions": [
+    {
+      "description": "a deposit of 5000 KES with a fresh idempotency key",
+      "providerState": "alice exists with balance 50000 KES",
+      "request": {
+        "body": {
+          "amount": 5000,
+          "idempotencyKey": "dep-pact-001"
+        },
+        "headers": {
+          "Authorization": "Bearer test.jwt.token",
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.headers.Authorization": {
+            "match": "regex",
+            "regex": "^Bearer .+"
+          }
+        },
+        "method": "POST",
+        "path": "/api/wallet/deposit"
+      },
+      "response": {
+        "body": {
+          "data": {
+            "amount": 5000,
+            "createdAt": "2026-05-08T09:00:00Z",
+            "reference": "DEP-dep-pact-001",
+            "status": "COMPLETED",
+            "type": "DEPOSIT"
+          },
+          "message": "Deposit successful",
+          "success": true,
+          "timestamp": "2026-05-08T09:00:00Z"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.body.data.createdAt": {
+            "match": "type"
+          },
+          "$.body.data.reference": {
+            "match": "type"
+          },
+          "$.body.message": {
+            "match": "type"
+          },
+          "$.body.timestamp": {
+            "match": "type"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "description": "a login with correct credentials",
+      "providerState": "alice exists with balance 50000 KES",
+      "request": {
+        "body": {
+          "email": "alice@demo.local",
+          "password": "password123"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "method": "POST",
+        "path": "/api/auth/login"
+      },
+      "response": {
+        "body": {
+          "data": {
+            "email": "alice@demo.local",
+            "fullName": "Alice Demo",
+            "phoneNumber": "+254700000001",
+            "token": "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJhbGljZUBkZW1vLmxvY2FsIn0.signature"
+          },
+          "message": "Login successful",
+          "success": true,
+          "timestamp": "2026-05-08T09:00:00Z"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.body.data.fullName": {
+            "match": "type"
+          },
+          "$.body.data.phoneNumber": {
+            "match": "type"
+          },
+          "$.body.data.token": {
+            "match": "regex",
+            "regex": "^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$"
+          },
+          "$.body.message": {
+            "match": "type"
+          },
+          "$.body.timestamp": {
+            "match": "type"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "description": "a login with the wrong password",
+      "providerState": "alice exists with balance 50000 KES",
+      "request": {
+        "body": {
+          "email": "alice@demo.local",
+          "password": "WRONG"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "method": "POST",
+        "path": "/api/auth/login"
+      },
+      "response": {
+        "body": {
+          "message": "Invalid email or password",
+          "success": false,
+          "timestamp": "2026-05-08T09:00:00Z"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.body.message": {
+            "match": "type"
+          },
+          "$.body.timestamp": {
+            "match": "type"
+          }
+        },
+        "status": 401
+      }
+    },
+    {
+      "description": "a paginated transaction list request",
+      "providerState": "alice has at least one historical transaction",
+      "request": {
+        "headers": {
+          "Authorization": "Bearer test.jwt.token"
+        },
+        "matchingRules": {
+          "$.headers.Authorization": {
+            "match": "regex",
+            "regex": "^Bearer .+"
+          }
+        },
+        "method": "GET",
+        "path": "/api/wallet/transactions",
+        "query": "page=0&size=20"
+      },
+      "response": {
+        "body": {
+          "data": {
+            "content": [
+              {
+                "amount": 5000,
+                "createdAt": "2026-05-08T09:30:00Z",
+                "description": "Cash deposit",
+                "reference": "DEP-abc123",
+                "status": "COMPLETED",
+                "type": "DEPOSIT"
+              }
+            ],
+            "number": 0,
+            "totalElements": 1,
+            "totalPages": 1
+          },
+          "success": true,
+          "timestamp": "2026-05-08T09:00:00Z"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.body.data.content": {
+            "match": "type",
+            "min": 1
+          },
+          "$.body.data.content[*].amount": {
+            "match": "type"
+          },
+          "$.body.data.content[*].createdAt": {
+            "match": "type"
+          },
+          "$.body.data.content[*].description": {
+            "match": "type"
+          },
+          "$.body.data.content[*].reference": {
+            "match": "type"
+          },
+          "$.body.data.content[*].status": {
+            "match": "regex",
+            "regex": "PENDING|COMPLETED|FAILED|REVERSED"
+          },
+          "$.body.data.content[*].type": {
+            "match": "regex",
+            "regex": "DEPOSIT|WITHDRAWAL|TRANSFER|FEE|REVERSAL"
+          },
+          "$.body.data.number": {
+            "match": "type"
+          },
+          "$.body.data.totalElements": {
+            "match": "type"
+          },
+          "$.body.data.totalPages": {
+            "match": "type"
+          },
+          "$.body.timestamp": {
+            "match": "type"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "description": "a registration with valid fields",
+      "providerState": "no user with email alice@demo.local or phone +254700000099 exists",
+      "request": {
+        "body": {
+          "email": "alice@demo.local",
+          "fullName": "Alice Demo",
+          "password": "password123",
+          "phoneNumber": "+254700000099",
+          "pin": "1234"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "method": "POST",
+        "path": "/api/auth/register"
+      },
+      "response": {
+        "body": {
+          "data": {
+            "email": "alice@demo.local",
+            "fullName": "Alice Demo",
+            "phoneNumber": "+254700000099",
+            "token": "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJhbGljZUBkZW1vLmxvY2FsIn0.signature"
+          },
+          "message": "User registered successfully",
+          "success": true,
+          "timestamp": "2026-05-08T09:00:00Z"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.body.data.token": {
+            "match": "regex",
+            "regex": "^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$"
+          },
+          "$.body.message": {
+            "match": "type"
+          },
+          "$.body.timestamp": {
+            "match": "type"
+          }
+        },
+        "status": 201
+      }
+    },
+    {
+      "description": "a retry of a transfer using an already-used idempotency key",
+      "providerState": "alice has previously transferred with idempotency key idem-pact-dup",
+      "request": {
+        "body": {
+          "amount": 5000,
+          "idempotencyKey": "idem-pact-dup",
+          "pin": "1234",
+          "recipientPhone": "+254700000002"
+        },
+        "headers": {
+          "Authorization": "Bearer test.jwt.token",
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.headers.Authorization": {
+            "match": "regex",
+            "regex": "^Bearer .+"
+          }
+        },
+        "method": "POST",
+        "path": "/api/wallet/transfer"
+      },
+      "response": {
+        "body": {
+          "message": "Transaction with this idempotency key has already been processed",
+          "success": false,
+          "timestamp": "2026-05-08T09:00:00Z"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.body.message": {
+            "match": "type"
+          },
+          "$.body.timestamp": {
+            "match": "type"
+          }
+        },
+        "status": 409
+      }
+    },
+    {
+      "description": "a reversal of a completed deposit",
+      "providerState": "alice has a completed deposit with reference DEP-pact-rev",
+      "request": {
+        "headers": {
+          "Authorization": "Bearer test.jwt.token"
+        },
+        "matchingRules": {
+          "$.headers.Authorization": {
+            "match": "regex",
+            "regex": "^Bearer .+"
+          }
+        },
+        "method": "POST",
+        "path": "/api/wallet/transactions/DEP-pact-rev/reverse",
+        "query": "reason=customer-request"
+      },
+      "response": {
+        "body": {
+          "data": {
+            "amount": 2000,
+            "createdAt": "2026-05-08T09:00:00Z",
+            "reference": "REV-DEP-pact-rev",
+            "status": "COMPLETED",
+            "type": "DEPOSIT"
+          },
+          "message": "Transaction reversed",
+          "success": true,
+          "timestamp": "2026-05-08T09:00:00Z"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.body.data.amount": {
+            "match": "type"
+          },
+          "$.body.data.createdAt": {
+            "match": "type"
+          },
+          "$.body.data.reference": {
+            "match": "type"
+          },
+          "$.body.message": {
+            "match": "type"
+          },
+          "$.body.timestamp": {
+            "match": "type"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "description": "a transaction list filtered by type=DEPOSIT",
+      "providerState": "alice has at least one DEPOSIT transaction",
+      "request": {
+        "headers": {
+          "Authorization": "Bearer test.jwt.token"
+        },
+        "matchingRules": {
+          "$.headers.Authorization": {
+            "match": "regex",
+            "regex": "^Bearer .+"
+          }
+        },
+        "method": "GET",
+        "path": "/api/wallet/transactions",
+        "query": "page=0&size=20&type=DEPOSIT"
+      },
+      "response": {
+        "body": {
+          "data": {
+            "content": [
+              {
+                "amount": 5000,
+                "createdAt": "2026-05-08T09:30:00Z",
+                "description": "Cash deposit",
+                "reference": "DEP-abc123",
+                "status": "COMPLETED",
+                "type": "DEPOSIT"
+              }
+            ],
+            "number": 0,
+            "totalElements": 1,
+            "totalPages": 1
+          },
+          "success": true,
+          "timestamp": "2026-05-08T09:00:00Z"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.body.data.content": {
+            "match": "type",
+            "min": 1
+          },
+          "$.body.data.content[*].amount": {
+            "match": "type"
+          },
+          "$.body.data.content[*].createdAt": {
+            "match": "type"
+          },
+          "$.body.data.content[*].description": {
+            "match": "type"
+          },
+          "$.body.data.content[*].reference": {
+            "match": "type"
+          },
+          "$.body.data.content[*].status": {
+            "match": "regex",
+            "regex": "PENDING|COMPLETED|FAILED|REVERSED"
+          },
+          "$.body.data.number": {
+            "match": "type"
+          },
+          "$.body.data.totalElements": {
+            "match": "type"
+          },
+          "$.body.data.totalPages": {
+            "match": "type"
+          },
+          "$.body.timestamp": {
+            "match": "type"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "description": "a transaction lookup by reference",
+      "providerState": "alice has a deposit with reference DEP-pact-lookup",
+      "request": {
+        "headers": {
+          "Authorization": "Bearer test.jwt.token"
+        },
+        "matchingRules": {
+          "$.headers.Authorization": {
+            "match": "regex",
+            "regex": "^Bearer .+"
+          }
+        },
+        "method": "GET",
+        "path": "/api/wallet/transactions/DEP-pact-lookup"
+      },
+      "response": {
+        "body": {
+          "data": {
+            "amount": 5000,
+            "createdAt": "2026-05-08T09:30:00Z",
+            "description": "Cash deposit",
+            "reference": "DEP-pact-lookup",
+            "status": "COMPLETED",
+            "type": "DEPOSIT"
+          },
+          "success": true,
+          "timestamp": "2026-05-08T09:00:00Z"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.body.data.amount": {
+            "match": "type"
+          },
+          "$.body.data.createdAt": {
+            "match": "type"
+          },
+          "$.body.data.description": {
+            "match": "type"
+          },
+          "$.body.data.status": {
+            "match": "regex",
+            "regex": "PENDING|COMPLETED|FAILED|REVERSED"
+          },
+          "$.body.data.type": {
+            "match": "regex",
+            "regex": "DEPOSIT|WITHDRAWAL|TRANSFER|FEE|REVERSAL"
+          },
+          "$.body.timestamp": {
+            "match": "type"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "description": "a transfer larger than the sender balance",
+      "providerState": "alice has balance 100 KES and bob is registered with phone +254700000002",
+      "request": {
+        "body": {
+          "amount": 5000,
+          "idempotencyKey": "trf-pact-poor",
+          "pin": "1234",
+          "recipientPhone": "+254700000002"
+        },
+        "headers": {
+          "Authorization": "Bearer test.jwt.token",
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.headers.Authorization": {
+            "match": "regex",
+            "regex": "^Bearer .+"
+          }
+        },
+        "method": "POST",
+        "path": "/api/wallet/transfer"
+      },
+      "response": {
+        "body": {
+          "message": "Insufficient balance. Available: KES 100.00, Required: KES 5050.00 (amount: 5000 + fee: 50.00)",
+          "success": false,
+          "timestamp": "2026-05-08T09:00:00Z"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.body.message": {
+            "match": "type"
+          },
+          "$.body.timestamp": {
+            "match": "type"
+          }
+        },
+        "status": 400
+      }
+    },
+    {
+      "description": "a transfer of 5000 KES from alice to bob",
+      "providerState": "alice has balance 50000 KES and bob is registered with phone +254700000002",
+      "request": {
+        "body": {
+          "amount": 5000,
+          "idempotencyKey": "trf-pact-001",
+          "pin": "1234",
+          "recipientPhone": "+254700000002"
+        },
+        "headers": {
+          "Authorization": "Bearer test.jwt.token",
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.headers.Authorization": {
+            "match": "regex",
+            "regex": "^Bearer .+"
+          }
+        },
+        "method": "POST",
+        "path": "/api/wallet/transfer"
+      },
+      "response": {
+        "body": {
+          "data": {
+            "amount": 5000,
+            "createdAt": "2026-05-08T09:00:00Z",
+            "reference": "TRF-trf-pact-001",
+            "status": "COMPLETED",
+            "type": "TRANSFER"
+          },
+          "message": "Transfer successful",
+          "success": true,
+          "timestamp": "2026-05-08T09:00:00Z"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.body.data.createdAt": {
+            "match": "type"
+          },
+          "$.body.data.reference": {
+            "match": "type"
+          },
+          "$.body.message": {
+            "match": "type"
+          },
+          "$.body.timestamp": {
+            "match": "type"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "description": "a transfer to an unregistered phone number",
+      "providerState": "alice exists; phone +254799000000 is not registered",
+      "request": {
+        "body": {
+          "amount": 1000,
+          "idempotencyKey": "trf-pact-nf",
+          "pin": "1234",
+          "recipientPhone": "+254799000000"
+        },
+        "headers": {
+          "Authorization": "Bearer test.jwt.token",
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.headers.Authorization": {
+            "match": "regex",
+            "regex": "^Bearer .+"
+          }
+        },
+        "method": "POST",
+        "path": "/api/wallet/transfer"
+      },
+      "response": {
+        "body": {
+          "message": "Recipient not found: +254799000000",
+          "success": false,
+          "timestamp": "2026-05-08T09:00:00Z"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.body.message": {
+            "match": "type"
+          },
+          "$.body.timestamp": {
+            "match": "type"
+          }
+        },
+        "status": 400
+      }
+    },
+    {
+      "description": "a wallet read for the authenticated user",
+      "providerState": "alice exists with balance 50000 KES",
+      "request": {
+        "headers": {
+          "Authorization": "Bearer test.jwt.token"
+        },
+        "matchingRules": {
+          "$.headers.Authorization": {
+            "match": "regex",
+            "regex": "^Bearer .+"
+          }
+        },
+        "method": "GET",
+        "path": "/api/wallet"
+      },
+      "response": {
+        "body": {
+          "data": {
+            "active": true,
+            "balance": 50000,
+            "createdAt": "2026-05-08T09:00:00Z",
+            "currency": "KES",
+            "dailyTransferLimit": 300000,
+            "dailyTransferUsed": 0,
+            "ownerName": "Alice Demo",
+            "phoneNumber": "+254700000001",
+            "walletId": 1
+          },
+          "success": true,
+          "timestamp": "2026-05-08T09:00:00Z"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.body.data.balance": {
+            "match": "type"
+          },
+          "$.body.data.createdAt": {
+            "match": "type"
+          },
+          "$.body.data.dailyTransferLimit": {
+            "match": "type"
+          },
+          "$.body.data.dailyTransferUsed": {
+            "match": "type"
+          },
+          "$.body.data.ownerName": {
+            "match": "type"
+          },
+          "$.body.data.phoneNumber": {
+            "match": "type"
+          },
+          "$.body.data.walletId": {
+            "match": "type"
+          },
+          "$.body.timestamp": {
+            "match": "type"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "description": "a withdrawal of 1000 KES with the correct PIN",
+      "providerState": "alice exists with balance 50000 KES",
+      "request": {
+        "body": {
+          "amount": 1000,
+          "idempotencyKey": "wdr-pact-001",
+          "pin": "1234"
+        },
+        "headers": {
+          "Authorization": "Bearer test.jwt.token",
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.headers.Authorization": {
+            "match": "regex",
+            "regex": "^Bearer .+"
+          }
+        },
+        "method": "POST",
+        "path": "/api/wallet/withdraw"
+      },
+      "response": {
+        "body": {
+          "data": {
+            "amount": 1000,
+            "createdAt": "2026-05-08T09:00:00Z",
+            "reference": "WDR-wdr-pact-001",
+            "status": "COMPLETED",
+            "type": "WITHDRAWAL"
+          },
+          "message": "Withdrawal successful",
+          "success": true,
+          "timestamp": "2026-05-08T09:00:00Z"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.body.data.createdAt": {
+            "match": "type"
+          },
+          "$.body.data.reference": {
+            "match": "type"
+          },
+          "$.body.message": {
+            "match": "type"
+          },
+          "$.body.timestamp": {
+            "match": "type"
+          }
+        },
+        "status": 200
+      }
+    },
+    {
+      "description": "a withdrawal with the wrong PIN",
+      "providerState": "alice exists with balance 50000 KES",
+      "request": {
+        "body": {
+          "amount": 1000,
+          "idempotencyKey": "wdr-pact-bad",
+          "pin": "9999"
+        },
+        "headers": {
+          "Authorization": "Bearer test.jwt.token",
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.headers.Authorization": {
+            "match": "regex",
+            "regex": "^Bearer .+"
+          }
+        },
+        "method": "POST",
+        "path": "/api/wallet/withdraw"
+      },
+      "response": {
+        "body": {
+          "message": "Invalid PIN",
+          "success": false,
+          "timestamp": "2026-05-08T09:00:00Z"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "$.body.message": {
+            "match": "type"
+          },
+          "$.body.timestamp": {
+            "match": "type"
+          }
+        },
+        "status": 401
+      }
+    }
+  ],
+  "metadata": {
+    "pact-js": {
+      "version": "16.4.0"
+    },
+    "pactRust": {
+      "ffi": "0.5.4",
+      "models": "1.3.11"
+    },
+    "pactSpecification": {
+      "version": "2.0.0"
+    }
+  },
+  "provider": {
+    "name": "wallet-api"
+  }
+}

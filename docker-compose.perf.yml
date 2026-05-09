@@ -1,0 +1,58 @@
+# Performance-test target. Brings up wallet-api against a local Postgres
+# with the same JVM heap tuning as production (Xmx256m + SerialGC) so the
+# numbers we measure here reflect the deployed shape.
+#
+# Bring-up:
+#   docker compose -f docker-compose.perf.yml up -d --build
+#   bash performance/seed-perf-data.sh
+#
+# Tear-down:
+#   docker compose -f docker-compose.perf.yml down -v
+
+services:
+  postgres-perf:
+    image: postgres:16-alpine
+    container_name: wallet-api-perf-postgres
+    environment:
+      POSTGRES_DB: walletdb_perf
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d walletdb_perf"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    networks:
+      - wallet-perf
+
+  wallet-api-perf:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: wallet-api-perf-app
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: postgres
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-perf:5432/walletdb_perf
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      # Match the production heap profile so numbers are comparable
+      JAVA_TOOL_OPTIONS: "-Xmx256m -Xms128m -XX:+UseSerialGC"
+    depends_on:
+      postgres-perf:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8080/actuator/health | grep -q UP"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
+    networks:
+      - wallet-perf
+
+networks:
+  wallet-perf:
+    driver: bridge
