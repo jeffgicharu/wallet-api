@@ -34,3 +34,6 @@ pacts/
 # PIT mutation reports
 target/pit-reports/
 reports/mutation/
+
+# Pact files fetched at test time (see PACT.md on the provider branch)
+pacts/
