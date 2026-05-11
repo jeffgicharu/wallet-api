@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Spotbugs / find-sec-bugs exclude file.
+
+    Add entries here only with a justification comment. Each exclusion is a
+    document that someone considered the finding and decided it was a false
+    positive or accepted risk — not a way to silence a real issue.
+-->
+<FindBugsFilter
+        xmlns="https://github.com/spotbugs/filter/3.0.0"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="https://github.com/spotbugs/filter/3.0.0 https://raw.githubusercontent.com/spotbugs/spotbugs/3.1.0/spotbugs/etc/findbugsfilter.xsd">
+
+    <!--
+        Lombok-generated JPA entities. @Getter / @Setter / @Builder produce
+        public accessors that return the same reference Hibernate manages.
+        For a JPA-managed bean this is the expected shape — the alternative
+        is hand-rolling defensive copies for every relationship, which
+        Hibernate would then need to merge back. Accepted.
+    -->
+    <Match>
+        <Class name="~com\.wallet\.entity\..*"/>
+        <Or>
+            <Bug pattern="EI_EXPOSE_REP"/>
+            <Bug pattern="EI_EXPOSE_REP2"/>
+        </Or>
+    </Match>
+
+    <!--
+        Spring SecurityConfig injects the JWT filter via @RequiredArgsConstructor.
+        Storing the filter reference is by design — Spring manages its
+        lifecycle, not us, so a defensive copy would break the wiring.
+    -->
+    <Match>
+        <Class name="com.wallet.config.SecurityConfig"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+
+    <!--
+        CSRF is intentionally disabled. The wallet-api is a stateless
+        REST API authenticated by JWT bearer tokens carried in the
+        Authorization header; CSRF protection is meaningful only for
+        cookie/session-based auth. OWASP CHEAT SHEET / Spring Security
+        docs both recommend disabling CSRF for stateless API. Reviewers:
+        if the auth model ever flips to cookies, remove this exclusion
+        and re-enable CSRF.
+    -->
+    <Match>
+        <Class name="com.wallet.config.SecurityConfig"/>
+        <Bug pattern="SPRING_CSRF_PROTECTION_DISABLED"/>
+    </Match>
+
+    <!--
+        JwtTokenProvider validates its HMAC key in the constructor; if the
+        key is too short, jjwt throws and the bean fails to construct
+        (i.e., Spring fails to start the application). That's exactly what
+        we want — there's no partially-initialised state to attack.
+        Spotbugs' CT_CONSTRUCTOR_THROW is a theoretical Finalizer-attack
+        warning that does not apply: this class has no @Override of
+        finalize() and is not subclassed.
+    -->
+    <Match>
+        <Class name="com.wallet.security.JwtTokenProvider"/>
+        <Bug pattern="CT_CONSTRUCTOR_THROW"/>
+    </Match>
+
+    <!--
+        TODO(security): remove this exclusion when issue #19 lands.
+        DM_DEFAULT_ENCODING on JwtTokenProvider.getBytes(): the fix is a
+        two-line change to pass StandardCharsets.UTF_8 explicitly. Issue
+        #19 documents the gap and the suggested fix; this PR does not
+        fix security findings — the exclusion is temporary tracking.
+        https://github.com/jeffgicharu/wallet-api/issues/19
+    -->
+    <Match>
+        <Class name="com.wallet.security.JwtTokenProvider"/>
+        <Bug pattern="DM_DEFAULT_ENCODING"/>
+    </Match>
+
+</FindBugsFilter>

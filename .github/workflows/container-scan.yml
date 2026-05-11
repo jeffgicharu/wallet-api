@@ -1,0 +1,68 @@
+name: Container & filesystem scan (Trivy)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Daily 02:00 UTC. CVE database updates daily so a scheduled run keeps
+    # the Security tab fresh even with no PR activity.
+    - cron: '0 2 * * *'
+
+jobs:
+  trivy-fs:
+    name: Filesystem scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          severity: 'HIGH,CRITICAL'
+          format: 'sarif'
+          output: 'trivy-fs.sarif'
+          # Fail the build on HIGH+ findings so PRs that introduce a new
+          # vulnerable dependency are caught here, not in production.
+          exit-code: '1'
+
+      - name: Upload Trivy fs SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-fs.sarif'
+          category: 'trivy-fs'
+
+  trivy-image:
+    name: Container image scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build wallet-api image
+        run: docker build -t wallet-api:scan .
+
+      - name: Run Trivy image scan
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: 'wallet-api:scan'
+          severity: 'HIGH,CRITICAL'
+          format: 'sarif'
+          output: 'trivy-image.sarif'
+          exit-code: '1'
+
+      - name: Upload Trivy image SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-image.sarif'
+          category: 'trivy-image'

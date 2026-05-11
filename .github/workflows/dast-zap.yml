@@ -1,0 +1,84 @@
+# OWASP ZAP DAST against the live deployment.
+#
+# SAFETY GUARD: the only AUTOMATIC trigger is the weekly schedule, which
+# runs a BASELINE scan (passive only, no active attacks). The ACTIVE / API
+# scan is reserved for manual workflow_dispatch — never automatic — so an
+# interviewer hitting the live demo cannot find a ZAP-induced 500.
+#
+# Local equivalent of the baseline scan (documented in SECURITY_TESTING.md):
+#   docker run --network=host --rm \
+#     -v "$PWD/security/zap:/zap/wrk/:rw" -u root \
+#     ghcr.io/zaproxy/zaproxy:stable \
+#     zap-baseline.py -t https://wallet-api.jeffgicharu.com \
+#       -r api-baseline-report.html -d 5
+
+name: DAST (OWASP ZAP)
+
+on:
+  schedule:
+    # Sunday 04:00 UTC.
+    - cron: '0 4 * * 0'
+  workflow_dispatch:
+    inputs:
+      scan_type:
+        description: 'Scan type. Use "baseline" for passive scan or "api" for ACTIVE scan (only run manually, never against an in-use demo).'
+        required: true
+        default: baseline
+        type: choice
+        options:
+          - baseline
+          - api
+
+env:
+  TARGET_URL: https://wallet-api.jeffgicharu.com
+  RATE_LIMIT_RPS: 5
+
+jobs:
+  zap-baseline:
+    name: ZAP baseline (passive)
+    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.scan_type == 'baseline')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run ZAP baseline against the live origin
+        uses: zaproxy/action-baseline@v0.13.0
+        with:
+          target: ${{ env.TARGET_URL }}
+          cmd_options: '-d ${{ env.RATE_LIMIT_RPS }}'
+          # Do not fail the build on warnings — the live origin is behind
+          # Cloudflare and ZAP's defaults include a noisy set of "passive"
+          # findings (cookie attributes etc.) that don't apply.
+          fail_action: false
+          # Auto-open a tracking issue if any HIGH+ is found.
+          issue_title: '[ZAP] Live-origin DAST findings — review and triage'
+          allow_issue_writing: true
+          artifact_name: 'zap-baseline-report'
+
+  zap-api-active:
+    name: ZAP API scan (ACTIVE — manual only)
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.scan_type == 'api'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Warn about active scan
+        run: |
+          echo "::warning::Running ZAP ACTIVE scan against ${{ env.TARGET_URL }}. This will generate traffic and may surface intentional 500s. Never schedule this — it must be a deliberate manual choice."
+
+      - name: Run ZAP API scan
+        uses: zaproxy/action-api-scan@v0.9.0
+        with:
+          target: ${{ env.TARGET_URL }}/v3/api-docs
+          format: openapi
+          cmd_options: '-d ${{ env.RATE_LIMIT_RPS }}'
+          fail_action: false
+          issue_title: '[ZAP API] Active-scan findings against live origin'
+          allow_issue_writing: true
+          artifact_name: 'zap-api-report'

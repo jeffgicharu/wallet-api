@@ -28,7 +28,7 @@ logs/
 *.mv.db
 *.trace.db
 
-# Pact files fetched from the consumer repo at test/CI time
+# Pact files fetched at provider-verification time (see PACT.md)
 pacts/
 
 # PIT mutation reports
@@ -39,5 +39,6 @@ reports/mutation/
 performance/results/
 performance/k6/lib/users.json
 
-# Pact files fetched at provider-verification time (see PACT.md)
-pacts/
+# Security scan reports (locally generated; never committed)
+security/zap/
+security/trivy/
