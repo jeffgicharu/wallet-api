@@ -1,0 +1,46 @@
+spring:
+  jpa:
+    hibernate:
+      # ddl-auto=create-drop is acceptable for the test profile because the
+      # tests own the database schema lifecycle. Issue #3 tracks moving the
+      # production profile off ddl-auto in favour of a migration tool.
+      ddl-auto: create-drop
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+
+  h2:
+    console:
+      enabled: false
+
+# JWT — explicit test-only secret. The default profile's hard-coded fallback
+# (issue #4) is bypassed by setting an environment-overridable test value here.
+jwt:
+  secret: test-only-jwt-secret-not-used-anywhere-else-deadbeef-cafe-1234567890
+  expiration-ms: 86400000
+
+# Wallet — match production defaults from the main application.yml so the
+# integration tests exercise the same fee, transfer-amount, and currency
+# behaviour the deployed instance uses.
+wallet:
+  default-currency: KES
+  transfer-fee-percent: 1.0
+  max-transfer-amount: 500000.00
+  min-transfer-amount: 10.00
+
+# CORS — broad allow-list for tests; never hits the wire.
+app:
+  cors:
+    allowed-origins: http://localhost:3002,http://localhost
+
+server:
+  port: 0
+
+logging:
+  level:
+    org.springframework: WARN
+    org.hibernate: WARN
+    com.wallet: INFO
+    org.testcontainers: WARN
+    com.zaxxer.hikari: WARN

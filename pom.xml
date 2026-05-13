@@ -19,7 +19,20 @@
     <properties>
         <java.version>17</java.version>
         <jjwt.version>0.12.5</jjwt.version>
+        <testcontainers.version>1.21.4</testcontainers.version>
     </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers-bom</artifactId>
+                <version>${testcontainers.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <!-- Web -->
@@ -122,6 +135,16 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -156,6 +179,19 @@
                         <id>check</id>
                         <goals><goal>check</goal></goals>
                         <configuration>
+                            <!--
+                                Interim ratchet. After test/api-integration-suite the
+                                bundle measures roughly 85% line coverage / 12% branch
+                                coverage / 51% instruction coverage. Each minimum sits
+                                a couple of points below the actual figure so that an
+                                accidental drop fails the build but a small good-faith
+                                refactor does not.
+
+                                The strategic targets documented in TEST_STRATEGY.md
+                                are line ≥ 80% and branch ≥ 70%. Future PRs that add
+                                controller / dto / repository / exception slices raise
+                                these thresholds as the actual numbers move.
+                            -->
                             <rules>
                                 <rule>
                                     <element>BUNDLE</element>
@@ -163,7 +199,17 @@
                                         <limit>
                                             <counter>LINE</counter>
                                             <value>COVEREDRATIO</value>
-                                            <minimum>0.40</minimum>
+                                            <minimum>0.80</minimum>
+                                        </limit>
+                                        <limit>
+                                            <counter>BRANCH</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.10</minimum>
+                                        </limit>
+                                        <limit>
+                                            <counter>INSTRUCTION</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.49</minimum>
                                         </limit>
                                     </limits>
                                 </rule>
