@@ -1,0 +1,63 @@
+# Snyk dependency scan.
+#
+# REQUIRES: A repository secret named SNYK_TOKEN configured at
+#   Settings → Secrets and variables → Actions → New repository secret
+# Get the token from https://app.snyk.io/account
+#
+# The job is intentionally tolerant of a missing token — it logs a notice
+# and exits 0 so PRs aren't blocked while the integration is being set up.
+# Owasp Dependency Check in ci.yml is the primary dep scanner; Snyk is the
+# secondary signal with better noise-vs-coverage on Java + Spring transitives.
+
+name: Snyk dependency scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly Sunday 05:00 UTC.
+    - cron: '0 5 * * 0'
+
+jobs:
+  snyk:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Check for SNYK_TOKEN
+        id: snyk_token
+        run: |
+          if [ -n "${{ secrets.SNYK_TOKEN }}" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::SNYK_TOKEN is not set. Snyk scan will be skipped (this does not fail the build). To enable, add a repo secret named SNYK_TOKEN."
+          fi
+
+      - name: Snyk test (Maven)
+        if: steps.snyk_token.outputs.configured == 'true'
+        uses: snyk/actions/maven-3-jdk-17@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high --sarif-file-output=snyk.sarif
+        continue-on-error: false
+
+      - name: Upload Snyk SARIF
+        if: always() && steps.snyk_token.outputs.configured == 'true'
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: snyk.sarif
+          category: snyk

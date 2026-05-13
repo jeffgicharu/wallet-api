@@ -23,6 +23,8 @@
         <pact-jvm.version>4.6.17</pact-jvm.version>
         <pitest.version>1.18.2</pitest.version>
         <pitest-junit5.version>1.2.3</pitest-junit5.version>
+        <spotbugs.version>4.8.6.6</spotbugs.version>
+        <findsecbugs.version>1.13.0</findsecbugs.version>
     </properties>
 
     <dependencyManagement>
@@ -293,6 +295,41 @@
                         <version>${pitest-junit5.version}</version>
                     </dependency>
                 </dependencies>
+            </plugin>
+
+            <!--
+                SAST. Spotbugs runs the find-sec-bugs detector pack against
+                compiled classes. Bound to verify so mvn verify -B catches
+                HIGH findings before the PR even hits CI. Documented
+                exclusions go in spotbugs-exclude.xml at the repo root.
+            -->
+            <plugin>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-maven-plugin</artifactId>
+                <version>${spotbugs.version}</version>
+                <configuration>
+                    <effort>Max</effort>
+                    <threshold>Medium</threshold>
+                    <failOnError>true</failOnError>
+                    <includeFilterFile/>
+                    <excludeFilterFile>${project.basedir}/spotbugs-exclude.xml</excludeFilterFile>
+                    <plugins>
+                        <plugin>
+                            <groupId>com.h3xstream.findsecbugs</groupId>
+                            <artifactId>findsecbugs-plugin</artifactId>
+                            <version>${findsecbugs.version}</version>
+                        </plugin>
+                    </plugins>
+                    <xmlOutput>true</xmlOutput>
+                    <outputDirectory>${project.build.directory}/spotbugs</outputDirectory>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>spotbugs-check</id>
+                        <phase>verify</phase>
+                        <goals><goal>check</goal></goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
