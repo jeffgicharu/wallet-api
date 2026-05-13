@@ -35,5 +35,9 @@ pacts/
 target/pit-reports/
 reports/mutation/
 
-# Pact files fetched at test time (see PACT.md on the provider branch)
+# Performance test results and seed-generated user lists
+performance/results/
+performance/k6/lib/users.json
+
+# Pact files fetched at provider-verification time (see PACT.md)
 pacts/
