@@ -1,5 +1,11 @@
 # Wallet API
 
+[![CI](https://github.com/jeffgicharu/wallet-api/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/jeffgicharu/wallet-api/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/jeffgicharu/wallet-api/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/jeffgicharu/wallet-api/actions/workflows/codeql.yml)
+[![Coverage](https://img.shields.io/badge/line%20coverage-87%25-brightgreen)](./QUALITY_DASHBOARD.md)
+[![Mutation](https://img.shields.io/badge/PIT%20mutation-76%25-brightgreen)](./MUTATION_TESTING.md)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+
 This is a mobile money wallet, similar to M-Pesa's backend. Users register, get a wallet, and can deposit, withdraw, or send money to each other by phone number.
 
 ## Live Demo
@@ -160,11 +166,34 @@ JMeter test plans are in `src/test/jmeter/`. The test plan simulates:
 
 Run with: `jmeter -n -t src/test/jmeter/wallet-api-load-test.jmx -l results.jtl`
 
-## Code Quality
+## Quality engineering
 
-- **JaCoCo** code coverage with enforcement threshold, report uploaded as CI artifact
-- **SonarCloud** static analysis for code smells, bugs, vulnerabilities, and coverage tracking
-- **OWASP Dependency Check** for known CVEs in third-party libraries
+This repo is one half of a polyglot wallet system; the SPA is at [`jeffgicharu/wallet-app`](https://github.com/jeffgicharu/wallet-app). The system-wide quality dashboard with current metrics, open issues, and links to every quality doc lives in [`QUALITY_DASHBOARD.md`](./QUALITY_DASHBOARD.md). Regenerate it locally with `bash scripts/quality-snapshot.sh` after `mvn verify`.
+
+**Per-area docs at this repo root:**
+
+| Document | Covers |
+|---|---|
+| [AUDIT.md](./AUDIT.md) | Baseline state — what exists, what doesn't, what's measured |
+| [TEST_STRATEGY.md](./TEST_STRATEGY.md) | Test pyramid per stack, SLO budgets, tooling inventory |
+| [TEST_PLAN.md](./TEST_PLAN.md) | Scenarios for the customer-onboarding-to-reversal workflow |
+| [QA_BEST_PRACTICES.md](./QA_BEST_PRACTICES.md) | Code-review checklist, naming, flaky-test policy, cross-repo flow |
+| [PACT.md](./PACT.md) | Provider verification setup, state-handler map, transport choice |
+| [MUTATION_TESTING.md](./MUTATION_TESTING.md) | PIT setup, ratchet, top-survivor register, fix effort estimates |
+| [PERFORMANCE_TESTING.md](./PERFORMANCE_TESTING.md) | k6 scenarios, SLO budgets, bottleneck register |
+| [SECURITY_TESTING.md](./SECURITY_TESTING.md) | Threat model, tooling-by-trigger, OWASP Top 10 mapping, DAST safety guard |
+| [AI_TESTING_PLAYBOOK.md](./AI_TESTING_PLAYBOOK.md) | AI-assisted testing workflow, worked examples, prompt templates, anti-patterns |
+
+**CI workflows:**
+
+| Workflow | Trigger | What it runs |
+|---|---|---|
+| [`ci.yml`](./.github/workflows/ci.yml) | every PR + push | `mvn verify` (unit + integration + security + Spotbugs + JaCoCo), OWASP Dependency Check, Docker build, SonarCloud (push-only) |
+| [`codeql.yml`](./.github/workflows/codeql.yml) | every PR + push + weekly | CodeQL Java analysis |
+| [`container-scan.yml`](./.github/workflows/container-scan.yml) | every PR + push + daily | Trivy filesystem + Trivy image |
+| [`dependency-snyk.yml`](./.github/workflows/dependency-snyk.yml) | every PR + push + weekly | Snyk (no-ops gracefully without `SNYK_TOKEN`) |
+| [`dast-zap.yml`](./.github/workflows/dast-zap.yml) | weekly + manual | OWASP ZAP baseline against the live origin; active scan manual-only |
+| [`perf-nightly.yml`](./.github/workflows/perf-nightly.yml) | nightly + manual | k6 load + spike + workflow + stress |
 
 ## License
 
