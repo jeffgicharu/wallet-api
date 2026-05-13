@@ -27,3 +27,6 @@ logs/
 *.db
 *.mv.db
 *.trace.db
+
+# Pact files fetched from the consumer repo at test/CI time
+pacts/
