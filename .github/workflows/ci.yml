@@ -10,7 +10,7 @@ env:
   # Branch on jeffgicharu/wallet-app to fetch the consumer pact from. Defaults
   # to main once the consumer PR is merged; flip to the feature branch while
   # the consumer PR is still in draft.
-  PACT_BRANCH: test/pact-consumer-contracts
+  PACT_BRANCH: main
 
 jobs:
   build-and-test:
