@@ -64,17 +64,4 @@
         <Bug pattern="CT_CONSTRUCTOR_THROW"/>
     </Match>
 
-    <!--
-        TODO(security): remove this exclusion when issue #19 lands.
-        DM_DEFAULT_ENCODING on JwtTokenProvider.getBytes(): the fix is a
-        two-line change to pass StandardCharsets.UTF_8 explicitly. Issue
-        #19 documents the gap and the suggested fix; this PR does not
-        fix security findings — the exclusion is temporary tracking.
-        https://github.com/jeffgicharu/wallet-api/issues/19
-    -->
-    <Match>
-        <Class name="com.wallet.security.JwtTokenProvider"/>
-        <Bug pattern="DM_DEFAULT_ENCODING"/>
-    </Match>
-
 </FindBugsFilter>
