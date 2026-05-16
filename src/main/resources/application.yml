@@ -15,6 +15,12 @@ spring:
       path: /h2-console
 
   jpa:
+    # Disabled (issue #5): the Open Session In View anti-pattern keeps a
+    # Hibernate session open for the whole request so lazy associations
+    # resolve during view rendering, hiding N+1s and holding a DB
+    # connection longer than the transaction. Service methods now carry
+    # explicit @Transactional boundaries instead.
+    open-in-view: false
     hibernate:
       ddl-auto: create-drop
     show-sql: false
@@ -91,6 +97,7 @@ spring:
       enabled: false
 
   jpa:
+    open-in-view: false   # issue #5 — see default profile note
     hibernate:
       ddl-auto: update
     properties:
@@ -131,6 +138,7 @@ spring:
       enabled: false
 
   jpa:
+    open-in-view: false   # issue #5 — see default profile note
     hibernate:
       ddl-auto: update
     show-sql: false
