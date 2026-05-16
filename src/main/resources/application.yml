@@ -28,8 +28,12 @@ spring:
       write-dates-as-timestamps: false
 
 # JWT Configuration
+# APP_JWT_SECRET is required — no default. A missing value fails the
+# bean construction (and the application start) by design so a deploy
+# can never silently run on a known/hard-coded signing key (issue #4).
+# See CONFIGURATION.md for a local-dev example.
 jwt:
-  secret: ${APP_JWT_SECRET:4f7a2b9c8d1e3f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a}
+  secret: ${APP_JWT_SECRET}
   expiration-ms: ${APP_JWT_EXPIRATION_MS:86400000}  # 24 hours
 
 # Wallet Configuration

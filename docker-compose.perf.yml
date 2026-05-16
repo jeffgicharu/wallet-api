@@ -39,6 +39,8 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-perf:5432/walletdb_perf
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
+      # Perf-only signing secret (issue #4 — no hard-coded fallback).
+      APP_JWT_SECRET: perf-stack-jwt-secret-not-for-deploy-deadbeef-cafe-0123456789
       # Match the production heap profile so numbers are comparable
       JAVA_TOOL_OPTIONS: "-Xmx256m -Xms128m -XX:+UseSerialGC"
     depends_on:

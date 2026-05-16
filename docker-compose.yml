@@ -8,6 +8,10 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/walletdb
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
+      # Local-only signing secret. APP_JWT_SECRET no longer has a
+      # hard-coded fallback (issue #4); this value is for the local
+      # docker-compose stack only — never a deploy secret.
+      APP_JWT_SECRET: ${APP_JWT_SECRET:-local-compose-jwt-secret-not-for-deploy-deadbeef-cafe-0123456789}
     depends_on:
       postgres:
         condition: service_healthy
