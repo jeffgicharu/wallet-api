@@ -35,6 +35,7 @@ public class WalletService {
     private final TransactionRepository transactionRepository;
     private final LedgerEntryRepository ledgerEntryRepository;
     private final PasswordEncoder passwordEncoder;
+    private final PinAttemptService pinAttemptService;
 
     @Value("${wallet.transfer-fee-percent}")
     private double transferFeePercent;
@@ -364,34 +365,34 @@ public class WalletService {
         return wallet;
     }
 
-    private static final int MAX_PIN_ATTEMPTS = 3;
-    private static final int LOCKOUT_MINUTES = 15;
 
     private void validatePin(User user, String rawPin) {
-        if (user.isPinLocked()) {
-            throw new IllegalStateException("Account is locked due to too many failed PIN attempts. Try again after "
-                    + user.getPinLockedUntil().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")));
+        // Lock check against the independently-committed counter (issue
+        // #9) — not this entity, which was loaded in the caller's
+        // transaction and may predate a prior failure's own-tx commit.
+        if (pinAttemptService.isLocked(user.getId())) {
+            throw new IllegalStateException(
+                    "Account is locked for " + PinAttemptService.LOCKOUT_MINUTES
+                            + " minutes due to too many failed PIN attempts.");
         }
 
         if (!passwordEncoder.matches(rawPin, user.getPin())) {
-            user.setFailedPinAttempts(user.getFailedPinAttempts() + 1);
-            if (user.getFailedPinAttempts() >= MAX_PIN_ATTEMPTS) {
-                user.setPinLockedUntil(java.time.LocalDateTime.now().plusMinutes(LOCKOUT_MINUTES));
+            // Persist the failed attempt in its OWN transaction so it
+            // survives this method's rollback (the caller is
+            // @Transactional and the throw below rolls it back).
+            PinAttemptService.FailureResult result =
+                    pinAttemptService.recordFailure(user.getId());
+            if (result.locked()) {
+                throw new IllegalStateException("Account locked for "
+                        + PinAttemptService.LOCKOUT_MINUTES + " minutes after "
+                        + PinAttemptService.MAX_PIN_ATTEMPTS + " failed PIN attempts");
             }
-            userRepository.save(user);
-            int remaining = MAX_PIN_ATTEMPTS - user.getFailedPinAttempts();
-            if (remaining > 0) {
-                throw new InvalidPinException();
-            } else {
-                throw new IllegalStateException("Account locked for " + LOCKOUT_MINUTES
-                        + " minutes after " + MAX_PIN_ATTEMPTS + " failed PIN attempts");
-            }
+            throw new InvalidPinException();
         }
 
-        if (user.getFailedPinAttempts() > 0) {
-            user.setFailedPinAttempts(0);
-            user.setPinLockedUntil(null);
-            userRepository.save(user);
+        // Correct PIN — clear any prior failures in its own tx.
+        if (user.getFailedPinAttempts() > 0 || user.getPinLockedUntil() != null) {
+            pinAttemptService.reset(user.getId());
         }
     }
 

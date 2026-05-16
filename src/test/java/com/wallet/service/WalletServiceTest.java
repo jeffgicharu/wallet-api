@@ -18,27 +18,40 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+// NOT @Transactional: PinAttemptService persists the failed-PIN counter
+// in a REQUIRES_NEW transaction (issue #9), which runs on a separate
+// connection and cannot see data created inside a rolled-back test
+// transaction. So fixtures are committed and each test starts from a
+// truncated schema instead (mirrors IntegrationTestBase).
 @SpringBootTest
-@Transactional
 class WalletServiceTest {
 
     @Autowired private WalletService walletService;
     @Autowired private UserRepository userRepository;
     @Autowired private WalletRepository walletRepository;
     @Autowired private PasswordEncoder passwordEncoder;
+    @Autowired private JdbcTemplate jdbcTemplate;
 
     private User alice;
     private User bob;
 
     @BeforeEach
     void setUp() {
+        // H2 idiom: drop FK enforcement, truncate each table, restore.
+        jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY FALSE");
+        for (String t : new String[]{
+                "audit_logs", "ledger_entries", "transactions", "wallets", "users"}) {
+            jdbcTemplate.execute("TRUNCATE TABLE " + t);
+        }
+        jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY TRUE");
+
         alice = userRepository.save(User.builder()
                 .fullName("Alice Wanjiku")
                 .email("alice@test.com")

@@ -72,20 +72,13 @@ class WalletOperationsIntegrationTest extends IntegrationTestBase {
     }
 
     /**
-     * Characterises the current behaviour of wrong-PIN handling. The README
-     * promises a 3-strike lockout; in practice
-     * {@code WalletService.validatePin} increments {@code failedPinAttempts}
-     * and then throws — the surrounding {@code @Transactional} on
-     * {@code withdraw} / {@code transfer} sees the {@code RuntimeException}
-     * and rolls the increment back. The lockout therefore never fires.
-     *
-     * <p>This test pins the actual behaviour: the request is rejected with
-     * 401, the balance is unchanged, and {@code failed_pin_attempts} reads as
-     * 0 (rolled back). When the lockout is fixed, this test is the regression
-     * net — it will fail and force the new expectation to be written down.
+     * Issue #9 fixed: a wrong PIN is rejected with 401, the balance is
+     * unchanged, AND the failed-attempt counter persists (it is now
+     * incremented in a REQUIRES_NEW transaction, so the caller's
+     * rollback no longer erases it).
      */
     @Test
-    void issueCharacterisation_wrongPinIsRejectedButFailedAttemptsCounterIsNotPersisted() throws Exception {
+    void wrongPin_isRejected_andFailedAttemptCounterPersists() throws Exception {
         String token = registerAndLogin("wdr-bad", TestData.uniquePhone());
         deposit(token, 5000);
 
@@ -100,32 +93,24 @@ class WalletOperationsIntegrationTest extends IntegrationTestBase {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(readBalance(token)).isEqualByComparingTo(new BigDecimal("5000.00"));
 
-        // Current behaviour (rolled back). When the lockout is fixed this
-        // becomes 1, then 2, then 3 with a non-null pinLockedUntil.
+        // The counter now survives the rolled-back withdraw transaction.
         Integer failedAttempts = jdbcTemplate.queryForObject(
                 "SELECT failed_pin_attempts FROM users LIMIT 1", Integer.class);
-        assertThat(failedAttempts).isEqualTo(0);
+        assertThat(failedAttempts).isEqualTo(1);
     }
 
     /**
-     * Characterises the current behaviour of repeated wrong-PIN attempts. The
-     * READMEs documents a 3-strike lockout; in practice every attempt returns
-     * 401 because the {@code @Transactional} rollback in
-     * {@code WalletService} undoes the
-     * {@code failedPinAttempts}-increment that
-     * {@code validatePin} performed before throwing.
-     *
-     * <p>Once the bug is fixed (likely by moving the counter persistence to a
-     * {@code REQUIRES_NEW} transaction or out of the rollback path) the third
-     * attempt will return 409 instead of 401, and this test flips.
+     * Issue #9 fixed: three wrong PINs trip the 3-strike lockout. The
+     * first two attempts are 401 (InvalidPinException); the third
+     * persists the counter to 3, sets pin_locked_until, and returns 409
+     * (locked). Balance untouched throughout.
      */
     @Test
-    void issueCharacterisation_repeatedWrongPinAttemptsCurrentlyDoNotTriggerLockout() throws Exception {
+    void threeWrongPins_triggerLockout() throws Exception {
         String token = registerAndLogin("pin-lock", TestData.uniquePhone());
         deposit(token, 5000);
 
-        // Three wrong attempts in a row: every single one currently returns 401.
-        for (int i = 0; i < 3; i++) {
+        for (int i = 1; i <= 3; i++) {
             ResponseEntity<String> r = restTemplate.exchange(
                     "/api/wallet/withdraw", HttpMethod.POST,
                     authedJsonEntity(token, Map.of(
@@ -133,33 +118,35 @@ class WalletOperationsIntegrationTest extends IntegrationTestBase {
                             "pin", "9999",
                             "idempotencyKey", TestData.uniqueKey("lock-bad"))),
                     String.class);
-            assertThat(r.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+            if (i < 3) {
+                assertThat(r.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+            } else {
+                // 3rd failure locks the account -> 409.
+                assertThat(r.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+            }
         }
 
-        // Counter and lockedUntil never persist.
         Integer attempts = jdbcTemplate.queryForObject(
                 "SELECT failed_pin_attempts FROM users LIMIT 1", Integer.class);
-        assertThat(attempts).isEqualTo(0);
+        assertThat(attempts).isEqualTo(3);
         Object lockedUntil = jdbcTemplate.queryForObject(
                 "SELECT pin_locked_until FROM users LIMIT 1", Object.class);
-        assertThat(lockedUntil).isNull();
+        assertThat(lockedUntil).isNotNull();
 
-        // Balance is intact — nothing was actually withdrawn.
         assertThat(readBalance(token)).isEqualByComparingTo(new BigDecimal("5000.00"));
     }
 
     /**
-     * Characterises the consequence of the lockout bug above: because the
-     * lockedUntil never persists, a correct PIN immediately after several
-     * wrong attempts goes through. When the lockout is fixed this becomes
-     * a 409 Conflict.
+     * Issue #9 fixed: after the lockout fires, a correct PIN within the
+     * 15-minute window is still rejected (409) — the lock holds, money
+     * does not move.
      */
     @Test
-    void issueCharacterisation_correctPinSucceedsImmediatelyAfterWrongAttempts() throws Exception {
+    void correctPinIsRejectedWhileLocked() throws Exception {
         String token = registerAndLogin("locked-then-good", TestData.uniquePhone());
         deposit(token, 5000);
 
-        // 3 wrong attempts (no lockout fires)
+        // 3 wrong attempts trip the lockout.
         for (int i = 0; i < 3; i++) {
             restTemplate.exchange(
                     "/api/wallet/withdraw", HttpMethod.POST,
@@ -170,8 +157,7 @@ class WalletOperationsIntegrationTest extends IntegrationTestBase {
                     String.class);
         }
 
-        // Correct PIN — currently goes through. Once the lockout is fixed this
-        // becomes 409 with the lockedUntil-window message.
+        // Correct PIN now — still rejected because the account is locked.
         ResponseEntity<String> res = restTemplate.exchange(
                 "/api/wallet/withdraw", HttpMethod.POST,
                 authedJsonEntity(token, Map.of(
@@ -180,8 +166,8 @@ class WalletOperationsIntegrationTest extends IntegrationTestBase {
                         "idempotencyKey", TestData.uniqueKey("locked-good"))),
                 String.class);
 
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(readBalance(token)).isEqualByComparingTo(new BigDecimal("4900.00"));
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(readBalance(token)).isEqualByComparingTo(new BigDecimal("5000.00"));
     }
 
     @Test
