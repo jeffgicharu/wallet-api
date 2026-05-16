@@ -74,24 +74,18 @@ class RateLimitingSecurityTest extends SecurityTestBase {
     }
 
     /**
-     * Characterisation of [issue #9](https://github.com/jeffgicharu/wallet-api/issues/9):
-     * `validatePin` increments `failedPinAttempts` and throws
-     * `RuntimeException`, which the surrounding `@Transactional` rolls
-     * back. The lockout therefore never triggers and an attacker can
-     * brute-force a 4-digit PIN at full throughput.
-     *
-     * <p>This test pins the broken behaviour: every wrong-PIN attempt
-     * gets the same 401 and the user is never locked. When the bug is
-     * fixed, the third attempt will return 409 (account locked) and this
-     * test fails, forcing the assertion to flip.
+     * Issue #9 fixed: the failed-PIN counter persists in a REQUIRES_NEW
+     * transaction, so the 3-strike lockout actually fires. A PIN
+     * brute-forcer is stopped at the 3rd attempt (409 account locked)
+     * rather than running unbounded.
      */
     @Test
-    void issueCharacterisation_pinLockoutDoesNotTriggerWithinFirstFiftyAttempts() throws Exception {
+    void pinLockoutTriggersOnThirdWrongAttempt() throws Exception {
         String token = registerAndLogin("pin-brute@sec.test", "+254700009040");
         deposit(token, 5000, "pin-brute-dep");
 
-        boolean lockedTriggered = false;
-        for (int i = 0; i < 50; i++) {
+        int lockedAt = -1;
+        for (int i = 1; i <= 50; i++) {
             Map<String, Object> body = Map.of(
                     "amount", 100,
                     "pin", "9999",
@@ -101,17 +95,16 @@ class RateLimitingSecurityTest extends SecurityTestBase {
                     "/api/wallet/withdraw", HttpMethod.POST,
                     authedJsonEntity(token, body), String.class);
             if (res.getStatusCode() == HttpStatus.CONFLICT) {
-                lockedTriggered = true;
+                lockedAt = i;
                 break;
             }
-            // current behaviour: every attempt returns 401
             assertThat(res.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         }
-        // Current code: lockout never triggers (issue #9).
-        // When #9 is fixed, lockedTriggered becomes true on attempt 3.
-        assertThat(lockedTriggered)
-                .as("Today the PIN lockout never triggers — see issue #9. Flip this assertion when #9 lands.")
-                .isFalse();
+        // 2 x 401 then the 3rd attempt locks (409). The brute-forcer
+        // cannot keep guessing.
+        assertThat(lockedAt)
+                .as("PIN lockout must fire by the 3rd wrong attempt (issue #9)")
+                .isEqualTo(3);
     }
 
     @Test

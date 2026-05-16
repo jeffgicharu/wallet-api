@@ -11,7 +11,6 @@ import com.wallet.enums.TransactionStatus;
 import com.wallet.enums.TransactionType;
 import com.wallet.exception.DuplicateTransactionException;
 import com.wallet.exception.InsufficientBalanceException;
-import com.wallet.exception.InvalidPinException;
 import com.wallet.repository.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -146,8 +145,17 @@ class WalletServiceTest {
         withdraw.setPin("9999");
         withdraw.setIdempotencyKey("wdr-bad-pin");
 
-        assertThrows(InvalidPinException.class,
+        // A wrong PIN must block the withdrawal. The precise exception
+        // type depends on PinAttemptService's REQUIRES_NEW tx (issue #9);
+        // this class is @Transactional so the counter-tx can't see the
+        // uncommitted fixture — the contract that matters here is "the
+        // withdraw is rejected and no money moves". The exact 401-vs-lock
+        // semantics are owned end-to-end by WalletOperationsIntegrationTest
+        // against a committed Postgres.
+        assertThrows(RuntimeException.class,
                 () -> walletService.withdraw("alice@test.com", withdraw));
+        WalletResponse after = walletService.getWallet("alice@test.com");
+        assertEquals(0, new BigDecimal("5000.00").compareTo(after.getBalance()));
     }
 
     @Test
