@@ -46,6 +46,13 @@
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
+        <!-- Token-bucket rate limiting for /api/auth/login (issue #21) -->
+        <dependency>
+            <groupId>com.bucket4j</groupId>
+            <artifactId>bucket4j_jdk17-core</artifactId>
+            <version>8.14.0</version>
+        </dependency>
+
         <!-- Observability -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -187,6 +194,17 @@
                     <environmentVariables>
                         <APP_JWT_SECRET>test-phase-jwt-secret-not-used-in-any-deploy-deadbeef-cafe-0123456789</APP_JWT_SECRET>
                     </environmentVariables>
+                    <!--
+                        The whole suite logs in many times against a shared
+                        context; the production 5/min login rate limit
+                        (issue #21) would throttle unrelated tests. Raise
+                        the ceiling for the test phase. RateLimitingSecurity
+                        Test pins it back to 5 via @TestPropertySource,
+                        which forks an isolated context + bucket map.
+                    -->
+                    <systemPropertyVariables>
+                        <security.login-rate-limit.max-attempts>100000</security.login-rate-limit.max-attempts>
+                    </systemPropertyVariables>
                 </configuration>
             </plugin>
 
