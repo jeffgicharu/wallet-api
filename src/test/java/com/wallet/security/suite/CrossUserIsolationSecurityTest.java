@@ -48,34 +48,33 @@ class CrossUserIsolationSecurityTest extends SecurityTestBase {
     }
 
     /**
-     * Characterisation of [issue #20](https://github.com/jeffgicharu/wallet-api/issues/20):
-     * `GET /api/wallet/transactions/{ref}` does not check the authenticated
-     * owner. Alice authenticated with her own JWT can fetch any transaction
-     * in the system if she guesses the reference — a direct cross-user
-     * data leak.
-     *
-     * <p>The test pins the broken behaviour (Alice gets 200 with Bob's body)
-     * so when issue #20 is fixed, the assertion flips and forces the test
-     * to be updated to assert 404 (preferred) or 403.
+     * Issue #20 fixed: `GET /api/wallet/transactions/{ref}` now scopes the
+     * lookup to the authenticated owner. Alice gets a 404 (same response
+     * as a genuinely-missing reference, so existence isn't leaked) when
+     * she probes Bob's reference, but still sees her own transaction.
      */
     @Test
-    void issueCharacterisation_aliceCanLookUpBobsTransactionByReferenceToday() throws Exception {
+    void issue20_aliceCannotLookUpBobsTransactionByReference() throws Exception {
         registerUser("alice-ref@sec.test", "+254700009012");
         registerUser("bob-ref@sec.test", "+254700009013");
         String aliceToken = login("alice-ref@sec.test");
         String bobToken = login("bob-ref@sec.test");
-        deposit(aliceToken, 1000, "ref-alice");
+        String aliceDepRef = deposit(aliceToken, 1000, "ref-alice");
         String bobDepRef = deposit(bobToken, 5000, "ref-bob");
 
-        ResponseEntity<String> res = restTemplate.exchange(
+        // Alice probing Bob's reference -> 404 (not 403, no info leak).
+        ResponseEntity<String> cross = restTemplate.exchange(
                 "/api/wallet/transactions/" + bobDepRef, HttpMethod.GET,
                 bearerHeaders(aliceToken), String.class);
+        assertThat(cross.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
 
-        // Current (buggy) behaviour: 200 with Bob's transaction body.
-        // When #20 closes, flip to: assertThat(res.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
-        JsonNode data = objectMapper.readTree(res.getBody()).path("data");
-        assertThat(data.path("reference").asText()).isEqualTo(bobDepRef);
+        // Alice can still read her own transaction.
+        ResponseEntity<String> own = restTemplate.exchange(
+                "/api/wallet/transactions/" + aliceDepRef, HttpMethod.GET,
+                bearerHeaders(aliceToken), String.class);
+        assertThat(own.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode data = objectMapper.readTree(own.getBody()).path("data");
+        assertThat(data.path("reference").asText()).isEqualTo(aliceDepRef);
     }
 
     @Test

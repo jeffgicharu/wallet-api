@@ -12,6 +12,7 @@ import com.wallet.enums.TransactionType;
 import com.wallet.exception.DuplicateTransactionException;
 import com.wallet.exception.InsufficientBalanceException;
 import com.wallet.exception.InvalidPinException;
+import com.wallet.exception.ResourceNotFoundException;
 import com.wallet.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -320,9 +321,25 @@ public class WalletService {
     }
 
     @Transactional(readOnly = true)
-    public TransactionResponse getTransactionByReference(String reference) {
+    public TransactionResponse getTransactionByReference(String email, String reference) {
         Transaction txn = transactionRepository.findByReference(reference)
-                .orElseThrow(() -> new IllegalArgumentException("Transaction not found: " + reference));
+                .orElseThrow(() -> new ResourceNotFoundException("Transaction not found: " + reference));
+
+        // Issue #20: the caller may only see a transaction their own
+        // wallet sent or received. Anything else returns the SAME 404 as
+        // a genuinely-missing reference so existence isn't leaked.
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        Long walletId = walletRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new IllegalArgumentException("Wallet not found"))
+                .getId();
+
+        Long senderId = txn.getSenderWallet() != null ? txn.getSenderWallet().getId() : null;
+        Long receiverId = txn.getReceiverWallet() != null ? txn.getReceiverWallet().getId() : null;
+        if (!walletId.equals(senderId) && !walletId.equals(receiverId)) {
+            throw new ResourceNotFoundException("Transaction not found: " + reference);
+        }
+
         return toTransactionResponse(txn);
     }
 

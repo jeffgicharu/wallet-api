@@ -96,8 +96,10 @@ public class WalletController {
 
     @GetMapping("/transactions/{reference}")
     @Operation(summary = "Look up transaction by reference")
-    public ResponseEntity<ApiResponse<TransactionResponse>> getTransaction(@PathVariable String reference) {
+    public ResponseEntity<ApiResponse<TransactionResponse>> getTransaction(
+            Authentication auth,
+            @PathVariable String reference) {
         return ResponseEntity.ok(ApiResponse.success("Transaction found",
-                walletService.getTransactionByReference(reference)));
+                walletService.getTransactionByReference(auth.getName(), reference)));
     }
 }
