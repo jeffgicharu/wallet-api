@@ -41,6 +41,10 @@ services:
       SPRING_DATASOURCE_PASSWORD: postgres
       # Perf-only signing secret (issue #4 — no hard-coded fallback).
       APP_JWT_SECRET: perf-stack-jwt-secret-not-for-deploy-deadbeef-cafe-0123456789
+      # Perf benchmarking drives many logins from one IP; the security
+      # login rate limit (issue #21) is not what we're measuring here, so
+      # raise the ceiling for the perf stack only. Production keeps 5/min.
+      SECURITY_LOGIN_RATE_LIMIT_MAX_ATTEMPTS: "1000000"
       # Match the production heap profile so numbers are comparable
       JAVA_TOOL_OPTIONS: "-Xmx256m -Xms128m -XX:+UseSerialGC"
     depends_on:

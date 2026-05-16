@@ -297,6 +297,16 @@
                     <targetTests>
                         <param>com.wallet.*</param>
                     </targetTests>
+                    <!--
+                        PIT runs the suite in its own forked minion JVMs,
+                        which do NOT inherit the surefire system properties.
+                        Without this the login rate limit (issue #21)
+                        defaults to 5/min and throttles the login-heavy
+                        suite, so PIT's green-suite precondition fails.
+                    -->
+                    <jvmArgs>
+                        <jvmArg>-Dsecurity.login-rate-limit.max-attempts=100000</jvmArg>
+                    </jvmArgs>
                     <mutators>
                         <mutator>STRONGER</mutator>
                     </mutators>
