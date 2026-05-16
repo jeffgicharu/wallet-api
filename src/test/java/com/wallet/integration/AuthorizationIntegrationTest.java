@@ -32,59 +32,67 @@ class AuthorizationIntegrationTest extends IntegrationTestBase {
     @Autowired ObjectMapper objectMapper;
 
     /**
-     * Documents the current (buggy) behaviour from issue #2 — a regular
-     * authenticated user can read /api/admin/users/search. When issue #2 lands,
-     * this assertion flips to FORBIDDEN.
+     * Issue #2 fixed: a regular (USER-role) authenticated caller is
+     * forbidden from /api/admin/users/search; an ADMIN-role caller is
+     * allowed.
      */
     @Test
-    void issue2_regularUserCanCallAdminUsersSearch_currentlyAllowed() throws Exception {
-        String token = registerAndLogin("regular-1", TestData.uniquePhone());
+    void issue2_regularUserForbiddenFromAdminUsersSearch_adminAllowed() throws Exception {
+        String userToken = registerAndLogin("regular-1", TestData.uniquePhone());
+        String adminToken = registerAdminAndLogin("admin-1", TestData.uniquePhone());
         String otherPhone = TestData.uniquePhone();
         register("admin-target", otherPhone);
 
-        ResponseEntity<String> res = restTemplate.exchange(
+        ResponseEntity<String> asUser = restTemplate.exchange(
                 "/api/admin/users/search?phone=" + otherPhone,
-                HttpMethod.GET, authedHeaders(token), String.class);
+                HttpMethod.GET, authedHeaders(userToken), String.class);
+        assertThat(asUser.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
-        // CURRENT behaviour: any authenticated user can hit admin endpoints.
-        // Once issue #2 is fixed, this will become HttpStatus.FORBIDDEN.
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        ResponseEntity<String> asAdmin = restTemplate.exchange(
+                "/api/admin/users/search?phone=" + otherPhone,
+                HttpMethod.GET, authedHeaders(adminToken), String.class);
+        assertThat(asAdmin.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
     /**
-     * Documents the current (buggy) behaviour from issue #2 — a regular
-     * authenticated user can freeze any wallet. When issue #2 lands, this
-     * assertion flips to FORBIDDEN.
+     * Issue #2 fixed: a regular user cannot freeze any wallet; an admin
+     * can.
      */
     @Test
-    void issue2_regularUserCanFreezeAnyWallet_currentlyAllowed() throws Exception {
+    void issue2_regularUserForbiddenFromFreeze_adminAllowed() throws Exception {
         String attacker = registerAndLogin("attacker", TestData.uniquePhone());
+        String admin = registerAdminAndLogin("admin-2", TestData.uniquePhone());
         String victimPhone = TestData.uniquePhone();
         register("victim", victimPhone);
 
-        ResponseEntity<String> res = restTemplate.exchange(
+        ResponseEntity<String> asUser = restTemplate.exchange(
                 "/api/admin/wallets/" + victimPhone + "/freeze",
                 HttpMethod.POST, authedHeaders(attacker), String.class);
+        assertThat(asUser.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
-        // CURRENT behaviour. After the issue #2 fix this becomes FORBIDDEN.
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        ResponseEntity<String> asAdmin = restTemplate.exchange(
+                "/api/admin/wallets/" + victimPhone + "/freeze",
+                HttpMethod.POST, authedHeaders(admin), String.class);
+        assertThat(asAdmin.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
     /**
-     * Documents the current (buggy) behaviour from issue #2 — the audit trail
-     * is readable by any authenticated user. When issue #2 lands, this
-     * assertion flips to FORBIDDEN.
+     * Issue #2 fixed: the audit trail is ADMIN-only.
      */
     @Test
-    void issue2_regularUserCanReadAuditTrail_currentlyAllowed() throws Exception {
-        String token = registerAndLogin("snoop", TestData.uniquePhone());
+    void issue2_regularUserForbiddenFromAuditTrail_adminAllowed() throws Exception {
+        String userToken = registerAndLogin("snoop", TestData.uniquePhone());
+        String adminToken = registerAdminAndLogin("admin-3", TestData.uniquePhone());
 
-        ResponseEntity<String> res = restTemplate.exchange(
+        ResponseEntity<String> asUser = restTemplate.exchange(
                 "/api/admin/audit",
-                HttpMethod.GET, authedHeaders(token), String.class);
+                HttpMethod.GET, authedHeaders(userToken), String.class);
+        assertThat(asUser.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
-        // CURRENT behaviour. After the issue #2 fix this becomes FORBIDDEN.
-        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
+        ResponseEntity<String> asAdmin = restTemplate.exchange(
+                "/api/admin/audit",
+                HttpMethod.GET, authedHeaders(adminToken), String.class);
+        assertThat(asAdmin.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
     /**
@@ -166,6 +174,23 @@ class AuthorizationIntegrationTest extends IntegrationTestBase {
                 jsonEntity(registerBody(email, phone)),
                 String.class);
         assertThat(reg.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        return objectMapper.readTree(reg.getBody()).path("data").path("token").asText();
+    }
+
+    /**
+     * Register a user, promote it to ADMIN directly in the DB, and return
+     * its token. Authorities are loaded from the DB per request
+     * (UserDetailsServiceImpl), so the original token now carries
+     * ROLE_ADMIN. Used to assert the positive side of issue #2.
+     */
+    private String registerAdminAndLogin(String prefix, String phone) throws Exception {
+        String email = TestData.uniqueEmail(prefix);
+        ResponseEntity<String> reg = restTemplate.postForEntity(
+                "/api/auth/register",
+                jsonEntity(registerBody(email, phone)),
+                String.class);
+        assertThat(reg.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        jdbcTemplate.update("UPDATE users SET role = 'ADMIN' WHERE email = ?", email);
         return objectMapper.readTree(reg.getBody()).path("data").path("token").asText();
     }
 

@@ -23,7 +23,7 @@ class ReconciliationIntegrationTest extends IntegrationTestBase {
     void shouldReportBalancedReconciliationOnFreshDatabase() throws Exception {
         // No users, no transactions, no ledger entries. Reconciliation must
         // still report balanced=true (sum debits = sum credits = 0).
-        String token = registerAndLogin("recon-empty", TestData.uniquePhone());
+        String token = registerAdminAndLogin("recon-empty", TestData.uniquePhone());
 
         ResponseEntity<String> res = restTemplate.exchange(
                 "/api/admin/reconcile", HttpMethod.GET, authedHeaders(token), String.class);
@@ -72,8 +72,9 @@ class ReconciliationIntegrationTest extends IntegrationTestBase {
                 HttpMethod.POST, authedHeaders(alice), String.class);
         assertThat(revRes.getStatusCode()).isEqualTo(HttpStatus.OK);
 
+        String adminToken = registerAdminAndLogin("recon-admin", TestData.uniquePhone());
         ResponseEntity<String> recon = restTemplate.exchange(
-                "/api/admin/reconcile", HttpMethod.GET, authedHeaders(alice), String.class);
+                "/api/admin/reconcile", HttpMethod.GET, authedHeaders(adminToken), String.class);
         assertThat(recon.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode data = objectMapper.readTree(recon.getBody()).path("data");
         // CURRENT behaviour — debits and credits diverge as soon as any
@@ -90,6 +91,21 @@ class ReconciliationIntegrationTest extends IntegrationTestBase {
                 jsonEntity(registerBody(email, phone)),
                 String.class);
         assertThat(reg.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        return objectMapper.readTree(reg.getBody()).path("data").path("token").asText();
+    }
+
+    /**
+     * /api/admin/reconcile is ADMIN-only (issue #2). Register, promote in
+     * the DB, return the token (authorities are loaded per request).
+     */
+    private String registerAdminAndLogin(String prefix, String phone) throws Exception {
+        String email = TestData.uniqueEmail(prefix);
+        ResponseEntity<String> reg = restTemplate.postForEntity(
+                "/api/auth/register",
+                jsonEntity(registerBody(email, phone)),
+                String.class);
+        assertThat(reg.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        jdbcTemplate.update("UPDATE users SET role = 'ADMIN' WHERE email = ?", email);
         return objectMapper.readTree(reg.getBody()).path("data").path("token").asText();
     }
 
