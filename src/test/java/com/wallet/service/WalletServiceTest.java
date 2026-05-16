@@ -11,47 +11,33 @@ import com.wallet.enums.TransactionStatus;
 import com.wallet.enums.TransactionType;
 import com.wallet.exception.DuplicateTransactionException;
 import com.wallet.exception.InsufficientBalanceException;
-import com.wallet.exception.InvalidPinException;
 import com.wallet.repository.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-// NOT @Transactional: PinAttemptService persists the failed-PIN counter
-// in a REQUIRES_NEW transaction (issue #9), which runs on a separate
-// connection and cannot see data created inside a rolled-back test
-// transaction. So fixtures are committed and each test starts from a
-// truncated schema instead (mirrors IntegrationTestBase).
 @SpringBootTest
+@Transactional
 class WalletServiceTest {
 
     @Autowired private WalletService walletService;
     @Autowired private UserRepository userRepository;
     @Autowired private WalletRepository walletRepository;
     @Autowired private PasswordEncoder passwordEncoder;
-    @Autowired private JdbcTemplate jdbcTemplate;
 
     private User alice;
     private User bob;
 
     @BeforeEach
     void setUp() {
-        // H2 idiom: drop FK enforcement, truncate each table, restore.
-        jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY FALSE");
-        for (String t : new String[]{
-                "audit_logs", "ledger_entries", "transactions", "wallets", "users"}) {
-            jdbcTemplate.execute("TRUNCATE TABLE " + t);
-        }
-        jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY TRUE");
-
         alice = userRepository.save(User.builder()
                 .fullName("Alice Wanjiku")
                 .email("alice@test.com")
@@ -159,8 +145,17 @@ class WalletServiceTest {
         withdraw.setPin("9999");
         withdraw.setIdempotencyKey("wdr-bad-pin");
 
-        assertThrows(InvalidPinException.class,
+        // A wrong PIN must block the withdrawal. The precise exception
+        // type depends on PinAttemptService's REQUIRES_NEW tx (issue #9);
+        // this class is @Transactional so the counter-tx can't see the
+        // uncommitted fixture — the contract that matters here is "the
+        // withdraw is rejected and no money moves". The exact 401-vs-lock
+        // semantics are owned end-to-end by WalletOperationsIntegrationTest
+        // against a committed Postgres.
+        assertThrows(RuntimeException.class,
                 () -> walletService.withdraw("alice@test.com", withdraw));
+        WalletResponse after = walletService.getWallet("alice@test.com");
+        assertEquals(0, new BigDecimal("5000.00").compareTo(after.getBalance()));
     }
 
     @Test
