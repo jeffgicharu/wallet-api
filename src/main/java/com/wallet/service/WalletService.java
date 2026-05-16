@@ -46,6 +46,9 @@ public class WalletService {
 
     // ─── WALLET INFO ────────────────────────────────────────────────
 
+    // readOnly tx so the lazy wallet.getUser() association resolves
+    // inside a session now that open-in-view is disabled (issue #5).
+    @Transactional(readOnly = true)
     public WalletResponse getWallet(String email) {
         Wallet wallet = getWalletByEmail(email);
         User user = wallet.getUser();
@@ -219,12 +222,14 @@ public class WalletService {
 
     // ─── TRANSACTION HISTORY ────────────────────────────────────────
 
+    @Transactional(readOnly = true)
     public Page<TransactionResponse> getTransactions(String email, Pageable pageable) {
         Wallet wallet = getWalletByEmail(email);
         return transactionRepository.findByWalletId(wallet.getId(), pageable)
                 .map(this::toTransactionResponse);
     }
 
+    @Transactional(readOnly = true)
     public Page<TransactionResponse> getTransactionsByType(String email,
             com.wallet.enums.TransactionType type, Pageable pageable) {
         Wallet wallet = getWalletByEmail(email);
@@ -232,6 +237,7 @@ public class WalletService {
                 .map(this::toTransactionResponse);
     }
 
+    @Transactional(readOnly = true)
     public Page<TransactionResponse> getTransactionsByDateRange(String email,
             java.time.LocalDateTime from, java.time.LocalDateTime to, Pageable pageable) {
         Wallet wallet = getWalletByEmail(email);
@@ -313,6 +319,7 @@ public class WalletService {
         return toTransactionResponse(reversal);
     }
 
+    @Transactional(readOnly = true)
     public TransactionResponse getTransactionByReference(String reference) {
         Transaction txn = transactionRepository.findByReference(reference)
                 .orElseThrow(() -> new IllegalArgumentException("Transaction not found: " + reference));
@@ -321,6 +328,7 @@ public class WalletService {
 
     // ─── LEDGER / STATEMENT ─────────────────────────────────────────
 
+    @Transactional(readOnly = true)
     public Page<LedgerEntry> getStatement(String email, Pageable pageable) {
         Wallet wallet = getWalletByEmail(email);
         return ledgerEntryRepository.findByWalletIdOrderByCreatedAtDesc(wallet.getId(), pageable);
