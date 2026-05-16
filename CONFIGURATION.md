@@ -24,7 +24,7 @@ SPRING_PROFILES_ACTIVE=prod java -jar wallet-api.jar
 | `SPRING_DATASOURCE_URL` | `jdbc:postgresql://localhost:5432/walletdb` (only in `postgres` profile) | JDBC URL. **Required in `prod`.** |
 | `SPRING_DATASOURCE_USERNAME` | `postgres` (only in `postgres` profile) | DB user. **Required in `prod`.** |
 | `SPRING_DATASOURCE_PASSWORD` | `postgres` (only in `postgres` profile) | DB password. **Required in `prod`.** |
-| `APP_JWT_SECRET` | hard-coded dev secret in default and `postgres` profiles | HMAC-SHA key for signing JWTs. **Required in `prod`.** Should be at least 32 bytes of high-entropy random data. |
+| `APP_JWT_SECRET` | **none — required in every profile** | HMAC-SHA key for signing JWTs. The application fails to start with a clear error if this is unset or blank (issue #4 — no hard-coded fallback). Use at least 32 bytes of high-entropy random data, e.g. `openssl rand -hex 32`. |
 | `APP_JWT_EXPIRATION_MS` | `86400000` (24 h) | Token lifetime in milliseconds. |
 | `APP_CORS_ALLOWED_ORIGINS` | `http://localhost:3002` (default and `postgres` profiles) | Comma-separated list of origins allowed to call the API from a browser. **Required in `prod`** — the deployed frontend's public URL belongs here, e.g. `https://wallet.jeffgicharu.com`. Multiple origins separated by commas: `https://wallet.jeffgicharu.com,https://staging.wallet.jeffgicharu.com`. |
 | `SERVER_PORT` | `8080` | HTTP listen port. |
@@ -35,6 +35,8 @@ SPRING_PROFILES_ACTIVE=prod java -jar wallet-api.jar
 **Local dev (no DB needed):**
 
 ```bash
+# APP_JWT_SECRET is mandatory — generate one once for local dev:
+export APP_JWT_SECRET=$(openssl rand -hex 32)
 mvn spring-boot:run
 # H2 console: http://localhost:8080/h2-console
 # Swagger:    http://localhost:8080/swagger-ui.html

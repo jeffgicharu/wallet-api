@@ -16,8 +16,18 @@ public class JwtTokenProvider {
     private final long expirationMs;
 
     public JwtTokenProvider(
-            @Value("${jwt.secret}") String secret,
+            @Value("${jwt.secret:}") String secret,
             @Value("${jwt.expiration-ms}") long expirationMs) {
+        // Fail fast with an actionable message if the signing secret is
+        // missing or blank (issue #4): a deploy must never silently run on
+        // a hard-coded key. The empty default on the @Value above lets us
+        // raise this clear error instead of an opaque placeholder failure.
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException(
+                    "APP_JWT_SECRET is required and must be non-empty. "
+                            + "Set the APP_JWT_SECRET environment variable "
+                            + "(see CONFIGURATION.md for a local-dev example).");
+        }
         // Derive the HMAC key from an explicit UTF-8 encoding. Relying on
         // the platform default charset (issue #19) means a JVM started
         // with a non-UTF-8 default would derive a different key and reject

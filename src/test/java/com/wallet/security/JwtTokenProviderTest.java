@@ -7,6 +7,7 @@ import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Regression for issue #19: the HMAC key must be derived from an explicit
@@ -45,6 +46,20 @@ class JwtTokenProviderTest {
 
         assertThat(provider.validateToken(token)).isTrue();
         assertThat(provider.getEmailFromToken(token)).isEqualTo("alice@demo.local");
+    }
+
+    @Test
+    void constructionFailsFastWhenSecretMissing() {
+        // Issue #4: no hard-coded fallback. A null/blank secret must fail
+        // bean construction with an actionable message so the app cannot
+        // silently start on a known key.
+        assertThatThrownBy(() -> new JwtTokenProvider("", 3_600_000L))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("APP_JWT_SECRET is required");
+
+        assertThatThrownBy(() -> new JwtTokenProvider("   ", 3_600_000L))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("APP_JWT_SECRET is required");
     }
 
     @Test

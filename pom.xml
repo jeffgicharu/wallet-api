@@ -176,6 +176,17 @@
                     <excludes>
                         <exclude>**/contract/*Test.java</exclude>
                     </excludes>
+                    <!--
+                        APP_JWT_SECRET has no hard-coded default any more
+                        (issue #4). @SpringBootTest classes that don't
+                        activate the 'test' profile load the default
+                        application.yml, so supply a test-only signing
+                        secret for the whole test phase. This is a CI/test
+                        value, never a deploy value.
+                    -->
+                    <environmentVariables>
+                        <APP_JWT_SECRET>test-phase-jwt-secret-not-used-in-any-deploy-deadbeef-cafe-0123456789</APP_JWT_SECRET>
+                    </environmentVariables>
                 </configuration>
             </plugin>
 
