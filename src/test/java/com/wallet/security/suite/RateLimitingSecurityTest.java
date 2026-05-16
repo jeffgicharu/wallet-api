@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.test.context.TestPropertySource;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -21,38 +22,55 @@ import static org.assertj.core.api.Assertions.assertThat;
  * {@link Disabled} with an explicit link to the tracking issue so the
  * gate {@code mvn verify -B} stays green and the gap is visible.
  */
+// Pin the login rate limit to the production value (5 / minute) for
+// this class only. @TestPropertySource forks a dedicated context with
+// its own in-memory bucket map, so the limit is deterministic here and
+// the rest of the suite (raised ceiling via surefire) is unaffected.
+@TestPropertySource(properties = {
+        "security.login-rate-limit.max-attempts=5",
+        "security.login-rate-limit.window-seconds=60"
+})
 class RateLimitingSecurityTest extends SecurityTestBase {
 
     @Autowired ObjectMapper objectMapper;
 
     /**
-     * Disabled until issue #21 lands a rate-limit layer in front of
-     * /api/auth/login. Today the API responds 401 indefinitely to bad
-     * credentials — no lockout, no 429, no backoff. An attacker with
-     * a single endpoint can run online password attacks freely.
-     *
-     * https://github.com/jeffgicharu/wallet-api/issues/21
+     * Issue #21 fixed: LoginRateLimitFilter throttles /api/auth/login to
+     * 5 attempts / minute / IP (pinned via @TestPropertySource above).
+     * The 6th rapid attempt returns 429 with a Retry-After header.
      */
-    @Disabled("No login rate-limit today; tracked by issue #21")
     @Test
     void shouldRateLimitRapidFailedLoginAttempts() {
         Map<String, Object> body = Map.of(
                 "email", "rate-target@sec.test",
                 "password", "WRONG"
         );
-        int firstFourXxAfterTenRequests = -1;
-        for (int i = 0; i < 100; i++) {
+
+        int firstThrottledAt = -1;
+        ResponseEntity<String> throttled = null;
+        for (int i = 1; i <= 20; i++) {
             ResponseEntity<String> res = restTemplate.exchange(
                     "/api/auth/login", HttpMethod.POST,
                     jsonEntity(body), String.class);
-            if (i >= 10 && res.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
-                firstFourXxAfterTenRequests = i;
+            if (res.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
+                firstThrottledAt = i;
+                throttled = res;
                 break;
             }
+            // Before the limit trips, a bad password is a normal 401.
+            assertThat(res.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         }
-        assertThat(firstFourXxAfterTenRequests)
-                .as("Expected 429 within 100 rapid failed logins")
-                .isPositive();
+
+        // Capacity is 5: throttling must kick in within the first
+        // handful of attempts (the exact attempt depends on the token
+        // bucket's initial-state semantics; 5 or 6 are both correct for
+        // a 5/min limit). The guarantee that matters: an attacker cannot
+        // run unbounded online password attempts.
+        assertThat(firstThrottledAt)
+                .as("rapid failed logins must be throttled within ~5 attempts")
+                .isBetween(5, 7);
+        assertThat(throttled).isNotNull();
+        assertThat(throttled.getHeaders().getFirst("Retry-After")).isNotNull();
     }
 
     /**
