@@ -1,5 +1,6 @@
 package com.wallet.entity;
 
+import com.wallet.enums.Role;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -31,6 +32,14 @@ public class User {
     @Column(nullable = false)
     private String pin;
 
+    // Authorization role (issue #2). Stored as a string; existing rows
+    // default to USER via the columnDefinition so a ddl-auto=update
+    // against a populated table doesn't fail on a NOT NULL add.
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16, columnDefinition = "varchar(16) default 'USER'")
+    @Builder.Default
+    private Role role = Role.USER;
+
     private int failedPinAttempts;
 
     private LocalDateTime pinLockedUntil;
@@ -45,6 +54,9 @@ public class User {
     protected void onCreate() {
         createdAt = LocalDateTime.now();
         failedPinAttempts = 0;
+        if (role == null) {
+            role = Role.USER;
+        }
     }
 
     public boolean isPinLocked() {

@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -20,6 +21,7 @@ class WalletIntegrationTest {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
+    @Autowired private JdbcTemplate jdbcTemplate;
 
     @Test
     @DisplayName("Full auth flow: register then login returns JWT")
@@ -128,7 +130,7 @@ class WalletIntegrationTest {
     @Test
     @DisplayName("Admin stats endpoint returns platform data")
     void adminStats_returnsData() throws Exception {
-        String token = registerAndGetToken("admin-stats@test.com", "+254711000008");
+        String token = registerAdminAndGetToken("admin-stats@test.com", "+254711000008");
 
         mockMvc.perform(get("/api/admin/stats")
                 .header("Authorization", "Bearer " + token))
@@ -143,9 +145,10 @@ class WalletIntegrationTest {
         String token = registerAndGetToken("freeze-user@test.com", "+254711000009");
         deposit(token, 10000, "freeze-dep");
 
-        // Freeze via admin
+        // Freeze must be performed by an ADMIN (issue #2).
+        String adminToken = registerAdminAndGetToken("freeze-admin@test.com", "+254711000019");
         mockMvc.perform(post("/api/admin/wallets/+254711000009/freeze")
-                .header("Authorization", "Bearer " + token))
+                .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk());
 
         // Attempt deposit on frozen wallet
@@ -162,8 +165,9 @@ class WalletIntegrationTest {
         String token = registerAndGetToken("recon@test.com", "+254711000010");
         deposit(token, 15000, "recon-dep");
 
+        String adminToken = registerAdminAndGetToken("recon-admin@test.com", "+254711000020");
         mockMvc.perform(get("/api/admin/reconcile/wallet/+254711000010")
-                .header("Authorization", "Bearer " + token))
+                .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.matches").value(true));
     }
@@ -209,6 +213,18 @@ class WalletIntegrationTest {
                 .andReturn();
         JsonNode json = objectMapper.readTree(result.getResponse().getContentAsString());
         return json.get("data").get("token").asText();
+    }
+
+    /**
+     * Register a user, promote it to ADMIN in the DB, and return its
+     * token. Admin endpoints now require ROLE_ADMIN (issue #2);
+     * authorities are loaded per-request from the DB so the original
+     * token carries the new role.
+     */
+    private String registerAdminAndGetToken(String email, String phone) throws Exception {
+        String token = registerAndGetToken(email, phone);
+        jdbcTemplate.update("UPDATE users SET role = 'ADMIN' WHERE email = ?", email);
+        return token;
     }
 
     private MvcResult deposit(String token, int amount, String key) throws Exception {
