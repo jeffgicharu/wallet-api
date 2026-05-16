@@ -56,6 +56,14 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error("Concurrent modification detected. Please retry the transaction."));
     }
 
+    // Missing OR not-owned resource (issue #20) — same 404 either way so
+    // existence isn't leaked.
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNotFound(ResourceNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException ex) {
         String errors = ex.getBindingResult().getFieldErrors().stream()
