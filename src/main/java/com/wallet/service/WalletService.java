@@ -460,15 +460,20 @@ public class WalletService {
     private static final String SYSTEM_CASH_PHONE = "+000000000000";
 
     private Wallet systemCashWallet() {
-        User sys = userRepository.findByEmail(SYSTEM_CASH_EMAIL).orElseGet(() ->
-                userRepository.save(User.builder()
-                        .fullName("System Cash")
-                        .email(SYSTEM_CASH_EMAIL)
-                        .phoneNumber(SYSTEM_CASH_PHONE)
-                        // Not a login account — fixed non-matching hashes.
-                        .password("x")
-                        .pin("x")
-                        .build()));
+        User sys = userRepository.findByEmail(SYSTEM_CASH_EMAIL).orElseGet(() -> {
+            // Not a login account. Use a random, never-disclosed,
+            // BCrypt-hashed value so no credential can ever match it
+            // (and so there's no hard-coded password literal).
+            String unusable = passwordEncoder.encode(
+                    java.util.UUID.randomUUID().toString());
+            return userRepository.save(User.builder()
+                    .fullName("System Cash")
+                    .email(SYSTEM_CASH_EMAIL)
+                    .phoneNumber(SYSTEM_CASH_PHONE)
+                    .password(unusable)
+                    .pin(unusable)
+                    .build());
+        });
         return walletRepository.findByUserId(sys.getId()).orElseGet(() ->
                 walletRepository.save(Wallet.builder()
                         .user(sys)
