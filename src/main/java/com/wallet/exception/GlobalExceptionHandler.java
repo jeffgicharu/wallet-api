@@ -2,6 +2,7 @@ package com.wallet.exception;
 
 import com.wallet.dto.response.ApiResponse;
 import jakarta.persistence.OptimisticLockException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -50,8 +51,12 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error("You do not have permission to perform this action."));
     }
 
-    @ExceptionHandler(OptimisticLockException.class)
-    public ResponseEntity<ApiResponse<Void>> handleOptimisticLock(OptimisticLockException ex) {
+    // jakarta OptimisticLockException and Spring's
+    // OptimisticLockingFailureException (incl. the Object* subclass that
+    // @Retryable retries on, issue #17). After the bounded retry is
+    // exhausted the failure surfaces here as a clean 409.
+    @ExceptionHandler({OptimisticLockException.class, OptimisticLockingFailureException.class})
+    public ResponseEntity<ApiResponse<Void>> handleOptimisticLock(Exception ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(ApiResponse.error("Concurrent modification detected. Please retry the transaction."));
     }
