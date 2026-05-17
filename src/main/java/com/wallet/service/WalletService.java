@@ -3,6 +3,7 @@ package com.wallet.service;
 import com.wallet.dto.request.DepositRequest;
 import com.wallet.dto.request.TransferRequest;
 import com.wallet.dto.request.WithdrawRequest;
+import com.wallet.dto.response.LedgerEntryResponse;
 import com.wallet.dto.response.TransactionResponse;
 import com.wallet.dto.response.WalletResponse;
 import com.wallet.entity.*;
@@ -379,9 +380,28 @@ public class WalletService {
     // ─── LEDGER / STATEMENT ─────────────────────────────────────────
 
     @Transactional(readOnly = true)
-    public Page<LedgerEntry> getStatement(String email, Pageable pageable) {
+    public Page<LedgerEntryResponse> getStatement(String email, Pageable pageable) {
         Wallet wallet = getWalletByEmail(email);
-        return ledgerEntryRepository.findByWalletIdOrderByCreatedAtDesc(wallet.getId(), pageable);
+        return ledgerEntryRepository
+                .findByWalletIdOrderByCreatedAtDesc(wallet.getId(), pageable)
+                .map(this::toLedgerEntryResponse);
+    }
+
+    // Map inside the read-only transaction so the lazy transaction
+    // association resolves here, not during response serialization
+    // (open-in-view is disabled, issue #5) — returning the raw entity
+    // triggered a LazyInitializationException -> 500 on /statement.
+    private LedgerEntryResponse toLedgerEntryResponse(LedgerEntry e) {
+        return LedgerEntryResponse.builder()
+                .id(e.getId())
+                .transactionReference(e.getTransaction().getReference())
+                .transactionType(e.getTransaction().getType())
+                .entryType(e.getEntryType())
+                .amount(e.getAmount())
+                .balanceBefore(e.getBalanceBefore())
+                .balanceAfter(e.getBalanceAfter())
+                .createdAt(e.getCreatedAt())
+                .build();
     }
 
     // ─── HELPERS ────────────────────────────────────────────────────

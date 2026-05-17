@@ -7,9 +7,9 @@ Cross-stack verification for the wallet pair. This file covers the **API side** 
 | Target | URL | Deploy ref / commit |
 |---|---|---|
 | Local | `http://localhost:8080` from `docker compose up -d` in this repo | branch `test/curl-endpoint-verification` |
-| Live  | `https://wallet-api.jeffgicharu.com` | whatever is currently deployed on the VPS (Cloudflare-fronted) |
+| Live  | `https://wallet-api.jeffgicharu.com` | VPS (Cloudflare-fronted) — Spring Boot 3.5.14, all 20 backlog fixes deployed (main `f2c8da3` + the `/statement` lazy-init fix), Flyway V1 baselined / V2 applied |
 
-Generated 2026-05-14 using `scripts/verify-endpoints-local.sh` and `scripts/verify-endpoints-live.sh`.
+Generated 2026-05-17 using `scripts/verify-endpoints-local.sh` and `scripts/verify-endpoints-live.sh`. The live table below is the post-redeploy run: every fixed behaviour now verified on production (issue #20 → 404, issue #2 admin → 403, `/statement` → 200, zero FAIL).
 
 ## Scripts
 
@@ -55,31 +55,31 @@ Every method/path combination served by the controllers was exercised end-to-end
 
 **Local p50 latency:** ~17 ms across reads; mutations are 25–151 ms (auth/PIN paths are the slowest because of BCrypt).
 
-## Live result (17 endpoints touched)
+## Live result (17 endpoints touched) — post-redeploy, zero FAIL
 
-Read-mostly. Single 1 KES deposit + its reversal so we leave the demo ledger essentially balanced. Throttled to 2 req/s.
+Run on 2026-05-17 against the redeployed stack (Spring Boot 3.5.14, all backlog fixes, Flyway-managed schema). Read-mostly: single 1 KES deposit + its reversal so the demo ledger stays essentially balanced. Throttled to 2 req/s. **Every fixed behaviour is now confirmed on production:** the cross-user lookup returns 404 (issue #20), every admin endpoint returns 403 for a regular-user JWT (issues #2/#11), and `/api/wallet/statement` returns 200 (the lazy-init regression introduced by the issue-#5 `open-in-view:false` change, found by this verification and fixed in the redeploy via a `LedgerEntryResponse` DTO).
 
 | Method | Path | Status | Time | Assert | Description |
 |---|---|---:|---:|---|---|
-| GET    | /actuator/health                                   | 200 |   972ms | PASS    | Actuator health |
-| GET    | /api-docs                                          | 200 |  1034ms | PASS    | OpenAPI spec served |
-| POST   | /api/auth/login                                    | 200 |  1035ms | PASS    | Login alice@demo.local |
-| GET    | /api/wallet                                        | 200 |   805ms | PASS    | Wallet for alice |
-| GET    | /api/wallet/transactions                           | 200 |   665ms | PASS    | Transactions page 0 |
-| GET    | /api/wallet/transactions?type=DEPOSIT              | 200 |   669ms | PASS    | Transactions filtered by type |
-| GET    | /api/wallet/statement                              | 200 |  1083ms | PASS    | Statement (ledger) |
-| GET    | /api/wallet/transactions/DEP-seed-bob              | 400 |   612ms | -       | **Cross-user lookup (issue #20: live deploy returns 400 instead of 200; characterized — see [new issue](#new-issues-filed))** |
-| POST   | /api/wallet/deposit                                | 200 |   824ms | PASS    | Deposit 1 KES probe |
-| POST   | /api/wallet/transactions/{ref}/reverse             | 200 |   619ms | PASS    | Reverse the probe deposit |
-| GET    | /api/admin/stats                                   | 200 |   689ms | -       | **Admin stats with alice's JWT (issue #2: should be 403)** |
-| GET    | /api/admin/audit                                   | 200 |   976ms | -       | **Admin audit log (issue #2)** |
-| GET    | /api/admin/reconcile                               | 200 |   668ms | -       | System reconciliation |
-| GET    | /api/admin/reconcile/wallet/+254700000001          | 200 |   602ms | -       | Per-wallet reconciliation |
-| GET    | /api/admin/users/search                            | 200 |   920ms | -       | Admin user search (issue #2) |
-| POST   | /api/auth/login                                    | 401 |   974ms | -       | Invalid login (expected) |
-| GET    | /api/wallet                                        | 403 |   801ms | -       | Wallet without JWT (expected) |
+| GET    | /actuator/health                                   | 200 |   929ms | PASS    | Actuator health |
+| GET    | /api-docs                                          | 200 |  2128ms | PASS    | OpenAPI spec served |
+| POST   | /api/auth/login                                    | 200 |  1668ms | PASS    | Login alice@demo.local |
+| GET    | /api/wallet                                        | 200 |   746ms | PASS    | Wallet for alice |
+| GET    | /api/wallet/transactions                           | 200 |   742ms | PASS    | Transactions for alice (page 0) |
+| GET    | /api/wallet/transactions?type=DEPOSIT              | 200 |   682ms | PASS    | Transactions filtered by type |
+| GET    | /api/wallet/statement                              | 200 |   723ms | PASS    | Account statement (ledger) — **issue #5 regression fixed** |
+| GET    | /api/wallet/transactions/DEP-seed-bob              | 404 |   655ms | PASS    | Cross-user lookup now 404 — **issue #20 fixed live** |
+| POST   | /api/wallet/deposit                                | 200 |  1146ms | PASS    | Deposit 1 KES probe |
+| POST   | /api/wallet/transactions/{ref}/reverse             | 200 |   633ms | PASS    | Reverse the probe deposit (issues #11/#12) |
+| GET    | /api/admin/stats                                   | 403 |   595ms | PASS    | Admin stats with alice's JWT now 403 — **issue #2 fixed live** |
+| GET    | /api/admin/audit                                   | 403 |   633ms | PASS    | Admin audit log 403 — issue #2 |
+| GET    | /api/admin/reconcile                               | 403 |   608ms | PASS    | System reconciliation 403 — issues #2/#11 |
+| GET    | /api/admin/reconcile/wallet/+254700000001          | 403 |   612ms | PASS    | Per-wallet reconciliation 403 |
+| GET    | /api/admin/users/search                            | 403 |   633ms | PASS    | Admin user search 403 — issue #2 |
+| POST   | /api/auth/login                                    | 401 |   654ms | PASS    | Invalid login (expected) |
+| GET    | /api/wallet                                        | 403 |   601ms | PASS    | Wallet without JWT (expected) |
 
-**Live p50 latency:** ~800 ms — roughly 50× the local time. Most of that is Cloudflare TLS + the trans-continental hop to the VPS in Germany. The ContractorOS baseline measured in the same way landed at ~700 ms; the wallet pair is slightly slower but in the same envelope. Ratio of CPU time to wall time on the VPS itself is small — the API itself responds quickly (visible in actuator + statement returning in ~600–700 ms when the rest of the stack runs in ~100 ms locally).
+**Live p50 latency:** ~660 ms — Cloudflare TLS + the trans-continental hop to the VPS in Germany dominates; the API itself responds in ~100 ms locally. In the same envelope as the ContractorOS baseline (~700 ms).
 
 ## Local vs live divergence
 

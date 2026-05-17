@@ -4,9 +4,9 @@ import com.wallet.dto.request.DepositRequest;
 import com.wallet.dto.request.TransferRequest;
 import com.wallet.dto.request.WithdrawRequest;
 import com.wallet.dto.response.ApiResponse;
+import com.wallet.dto.response.LedgerEntryResponse;
 import com.wallet.dto.response.TransactionResponse;
 import com.wallet.dto.response.WalletResponse;
-import com.wallet.entity.LedgerEntry;
 import com.wallet.service.WalletService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -78,10 +78,10 @@ public class WalletController {
 
     @GetMapping("/statement")
     @Operation(summary = "Account statement", description = "Double-entry ledger showing balance before/after each operation")
-    public ResponseEntity<ApiResponse<Page<LedgerEntry>>> getStatement(
+    public ResponseEntity<ApiResponse<Page<LedgerEntryResponse>>> getStatement(
             Authentication auth,
             @PageableDefault(size = 20) Pageable pageable) {
-        Page<LedgerEntry> page = walletService.getStatement(auth.getName(), pageable);
+        Page<LedgerEntryResponse> page = walletService.getStatement(auth.getName(), pageable);
         return ResponseEntity.ok(ApiResponse.success("Statement retrieved", page));
     }
 
