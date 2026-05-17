@@ -34,21 +34,13 @@ class ReconciliationIntegrationTest extends IntegrationTestBase {
     }
 
     /**
-     * Characterises a deeper architectural limitation: the reconciliation
-     * endpoint computes {@code balanced = abs(totalDebits - totalCredits) <
-     * 0.01}. A truly double-entry system always satisfies this, but the
-     * current implementation only writes ledger entries on the wallet side —
-     * deposits and withdrawals have no system-side counter-entry. So once
-     * any activity exists, debits and credits diverge and {@code balanced}
-     * becomes false.
-     *
-     * <p>This test pins that behaviour. When the ledger model is fixed to
-     * include the system-side counter-entry, {@code balanced} flips back to
-     * true and this assertion needs to flip with it. Until then it is the
-     * regression net for the {@code balanced=false} state.
+     * Issue #11 fixed: a system_cash counterpart entry is now posted for
+     * every external cash movement (deposit/withdrawal/fee) and their
+     * reversals, so total debits == total credits and reconciliation
+     * reports {@code balanced=true} after arbitrary activity.
      */
     @Test
-    void issueCharacterisation_systemReconciliationIsNotBalancedAfterAnyActivity() throws Exception {
+    void systemReconciliationIsBalancedAfterActivity() throws Exception {
         String alice = registerAndLogin("recon-a", TestData.uniquePhone());
         String bobPhone = TestData.uniquePhone();
         register("recon-b", bobPhone);
@@ -77,9 +69,9 @@ class ReconciliationIntegrationTest extends IntegrationTestBase {
                 "/api/admin/reconcile", HttpMethod.GET, authedHeaders(adminToken), String.class);
         assertThat(recon.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode data = objectMapper.readTree(recon.getBody()).path("data");
-        // CURRENT behaviour — debits and credits diverge as soon as any
-        // wallet activity exists. See the Javadoc on this test for context.
-        assertThat(data.path("balanced").asBoolean()).isFalse();
+        // Every cash movement now has a system_cash counterpart, so the
+        // books balance after deposits + transfer (fee) + reversal.
+        assertThat(data.path("balanced").asBoolean()).isTrue();
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────

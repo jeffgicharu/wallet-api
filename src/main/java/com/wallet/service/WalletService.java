@@ -36,6 +36,9 @@ public class WalletService {
     private final PasswordEncoder passwordEncoder;
     private final PinAttemptService pinAttemptService;
 
+    @Value("${wallet.default-currency}")
+    private String defaultCurrency;
+
     @Value("${wallet.transfer-fee-percent}")
     private double transferFeePercent;
 
@@ -82,6 +85,8 @@ public class WalletService {
         transactionRepository.save(txn);
 
         createLedgerEntry(txn, wallet, EntryType.CREDIT, amount, balanceBefore, wallet.getBalance());
+        // Counterpart: cash entered the system from outside (issue #11).
+        postSystemCounterpart(txn, EntryType.DEBIT, amount);
 
         return toTransactionResponse(txn);
     }
@@ -122,6 +127,8 @@ public class WalletService {
         transactionRepository.save(txn);
 
         createLedgerEntry(txn, wallet, EntryType.DEBIT, amount, balanceBefore, wallet.getBalance());
+        // Counterpart: cash left the system (issue #11).
+        postSystemCounterpart(txn, EntryType.CREDIT, amount);
 
         return toTransactionResponse(txn);
     }
@@ -207,6 +214,10 @@ public class WalletService {
                 senderBalanceBefore, senderWallet.getBalance());
         createLedgerEntry(txn, receiverWallet, EntryType.CREDIT, amount,
                 receiverBalanceBefore, receiverWallet.getBalance());
+        // Sender is debited amount+fee but receiver is only credited
+        // amount; the fee leaves the system, so credit system_cash the
+        // fee to keep debits == credits (issue #11).
+        postSystemCounterpart(txn, EntryType.CREDIT, fee);
 
         // Fee transaction (separate ledger trail)
         if (fee.compareTo(BigDecimal.ZERO) > 0) {
@@ -287,6 +298,8 @@ public class WalletService {
 
             createLedgerEntry(original, sender, EntryType.CREDIT, amount.add(fee), senderBefore, sender.getBalance());
             createLedgerEntry(original, receiver, EntryType.DEBIT, amount, receiverBefore, receiver.getBalance());
+            // Mirror of the original fee counterpart (issue #11).
+            postSystemCounterpart(original, EntryType.DEBIT, fee);
 
         } else if (original.getType() == TransactionType.DEPOSIT) {
             Wallet wallet = original.getReceiverWallet();
@@ -297,6 +310,7 @@ public class WalletService {
             wallet.setBalance(before.subtract(amount));
             walletRepository.save(wallet);
             createLedgerEntry(original, wallet, EntryType.DEBIT, amount, before, wallet.getBalance());
+            postSystemCounterpart(original, EntryType.CREDIT, amount);
 
         } else if (original.getType() == TransactionType.WITHDRAWAL) {
             Wallet wallet = original.getSenderWallet();
@@ -304,6 +318,7 @@ public class WalletService {
             wallet.setBalance(before.add(amount));
             walletRepository.save(wallet);
             createLedgerEntry(original, wallet, EntryType.CREDIT, amount, before, wallet.getBalance());
+            postSystemCounterpart(original, EntryType.DEBIT, amount);
         }
 
         original.setStatus(TransactionStatus.REVERSED);
@@ -428,6 +443,60 @@ public class WalletService {
                 .balanceAfter(after)
                 .build();
         ledgerEntryRepository.save(entry);
+    }
+
+    // ─── SYSTEM CASH LEDGER (issue #11) ──────────────────────────────
+    //
+    // Deposits/withdrawals/fees only ever touched a user wallet, so
+    // system-wide debits never equalled credits and reconciliation was
+    // always balanced=false. A reserved "system cash" account holds the
+    // counterpart of every external cash movement: deposit credits the
+    // user + debits system_cash; withdrawal debits the user + credits
+    // system_cash; the transfer fee (which leaves the sender but isn't
+    // credited to the receiver) credits system_cash. With the
+    // counterpart entry, sum(DEBIT) == sum(CREDIT) for any activity.
+
+    private static final String SYSTEM_CASH_EMAIL = "system-cash@internal.wallet";
+    private static final String SYSTEM_CASH_PHONE = "+000000000000";
+
+    private Wallet systemCashWallet() {
+        User sys = userRepository.findByEmail(SYSTEM_CASH_EMAIL).orElseGet(() ->
+                userRepository.save(User.builder()
+                        .fullName("System Cash")
+                        .email(SYSTEM_CASH_EMAIL)
+                        .phoneNumber(SYSTEM_CASH_PHONE)
+                        // Not a login account — fixed non-matching hashes.
+                        .password("x")
+                        .pin("x")
+                        .build()));
+        return walletRepository.findByUserId(sys.getId()).orElseGet(() ->
+                walletRepository.save(Wallet.builder()
+                        .user(sys)
+                        .balance(BigDecimal.ZERO)
+                        .currency(defaultCurrency)
+                        .active(true)
+                        .build()));
+    }
+
+    /**
+     * Post the system-cash counterpart for a cash movement. CREDIT
+     * increases the system balance, DEBIT decreases it (mirrors user
+     * wallet semantics). system_cash net position is the negative of
+     * the sum of user balances — expected for a cash-drawer account and
+     * allowed to go negative.
+     */
+    private void postSystemCounterpart(Transaction txn, EntryType type, BigDecimal amount) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        Wallet sys = systemCashWallet();
+        BigDecimal before = sys.getBalance();
+        BigDecimal after = type == EntryType.CREDIT
+                ? before.add(amount)
+                : before.subtract(amount);
+        sys.setBalance(after);
+        walletRepository.save(sys);
+        createLedgerEntry(txn, sys, type, amount, before, after);
     }
 
     private static final BigDecimal DAILY_TRANSFER_LIMIT = new BigDecimal("300000.00");

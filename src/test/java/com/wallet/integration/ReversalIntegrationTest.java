@@ -42,13 +42,12 @@ class ReversalIntegrationTest extends IntegrationTestBase {
         assertThat(reversedCount).isEqualTo(1L);
         assertThat(reversalRowCount).isEqualTo(1L);
 
-        // 1 CREDIT (original deposit) + 1 DEBIT (reversal) = 2 ledger entries.
-        // The current implementation does not record paired counter-entries
-        // on the system side; see WalletOperationsIntegrationTest for the
-        // matching characterisation.
+        // Issue #11: deposit = wallet CREDIT + system DEBIT (2);
+        // reversal = wallet DEBIT + system CREDIT (2). 4 total, books
+        // balanced.
         Long ledgerCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM ledger_entries", Long.class);
-        assertThat(ledgerCount).isEqualTo(2L);
+        assertThat(ledgerCount).isEqualTo(4L);
     }
 
     @Test

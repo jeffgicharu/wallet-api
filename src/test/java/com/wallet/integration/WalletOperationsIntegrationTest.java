@@ -38,14 +38,12 @@ class WalletOperationsIntegrationTest extends IntegrationTestBase {
         BigDecimal balance = readBalance(token);
         assertThat(balance).isEqualByComparingTo(new BigDecimal("25000.00"));
 
-        // The current implementation writes ONE ledger entry per non-transfer
-        // operation (a CREDIT to the wallet on deposit). The system-level
-        // counter-entry that would make the ledger fully double-entry is not
-        // recorded today; reconciliation accounts for this asymmetry. See
-        // ReconciliationIntegrationTest for the matching characterisation.
+        // Issue #11 fixed: a deposit now writes TWO ledger entries — the
+        // wallet CREDIT plus the system_cash DEBIT counterpart that keeps
+        // the books double-entry. See ReconciliationIntegrationTest.
         Long ledgerCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM ledger_entries", Long.class);
-        assertThat(ledgerCount).isEqualTo(1L);
+        assertThat(ledgerCount).isEqualTo(2L);
     }
 
     @Test
@@ -64,11 +62,11 @@ class WalletOperationsIntegrationTest extends IntegrationTestBase {
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(readBalance(token)).isEqualByComparingTo(new BigDecimal("4000.00"));
 
-        // 1 CREDIT entry from deposit + 1 DEBIT entry from withdraw — see the
-        // single-entry note on shouldIncrementBalanceAndWriteLedgerOnDeposit.
+        // deposit = 2 entries (wallet CREDIT + system DEBIT), withdraw =
+        // 2 entries (wallet DEBIT + system CREDIT) → 4 total (issue #11).
         Long ledgerCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM ledger_entries", Long.class);
-        assertThat(ledgerCount).isEqualTo(2L);
+        assertThat(ledgerCount).isEqualTo(4L);
     }
 
     /**
@@ -95,7 +93,7 @@ class WalletOperationsIntegrationTest extends IntegrationTestBase {
 
         // The counter now survives the rolled-back withdraw transaction.
         Integer failedAttempts = jdbcTemplate.queryForObject(
-                "SELECT failed_pin_attempts FROM users LIMIT 1", Integer.class);
+                "SELECT failed_pin_attempts FROM users WHERE email <> 'system-cash@internal.wallet' LIMIT 1", Integer.class);
         assertThat(failedAttempts).isEqualTo(1);
     }
 
@@ -127,10 +125,10 @@ class WalletOperationsIntegrationTest extends IntegrationTestBase {
         }
 
         Integer attempts = jdbcTemplate.queryForObject(
-                "SELECT failed_pin_attempts FROM users LIMIT 1", Integer.class);
+                "SELECT failed_pin_attempts FROM users WHERE email <> 'system-cash@internal.wallet' LIMIT 1", Integer.class);
         assertThat(attempts).isEqualTo(3);
         Object lockedUntil = jdbcTemplate.queryForObject(
-                "SELECT pin_locked_until FROM users LIMIT 1", Object.class);
+                "SELECT pin_locked_until FROM users WHERE email <> 'system-cash@internal.wallet' LIMIT 1", Object.class);
         assertThat(lockedUntil).isNotNull();
 
         assertThat(readBalance(token)).isEqualByComparingTo(new BigDecimal("5000.00"));
