@@ -35,6 +35,7 @@ public class WalletService {
     private final LedgerEntryRepository ledgerEntryRepository;
     private final PasswordEncoder passwordEncoder;
     private final PinAttemptService pinAttemptService;
+    private final AuditService auditService;
 
     @Value("${wallet.default-currency}")
     private String defaultCurrency;
@@ -263,7 +264,7 @@ public class WalletService {
     // ─── REVERSAL ───────────────────────────────────────────────────
 
     @Transactional
-    public TransactionResponse reverseTransaction(String reference, String reason) {
+    public TransactionResponse reverseTransaction(String actor, String reference, String reason) {
         Transaction original = transactionRepository.findByReference(reference)
                 .orElseThrow(() -> new IllegalArgumentException("Transaction not found: " + reference));
 
@@ -334,6 +335,16 @@ public class WalletService {
                 .description("Reversal of " + reference + ": " + (reason != null ? reason : "No reason"))
                 .build();
         transactionRepository.save(reversal);
+
+        // Issue #12: record the reversal in the audit log so admins can
+        // see who reversed what, when, and why.
+        auditService.log(
+                "REVERSAL",
+                "TRANSACTION",
+                reference,
+                actor,
+                "Reversed " + reference + " -> " + reversalRef
+                        + "; reason: " + (reason != null ? reason : "No reason"));
 
         return toTransactionResponse(reversal);
     }

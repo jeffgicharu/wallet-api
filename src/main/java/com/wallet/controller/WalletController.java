@@ -88,9 +88,11 @@ public class WalletController {
     @PostMapping("/transactions/{reference}/reverse")
     @Operation(summary = "Reverse a transaction", description = "Reverses a completed transaction and refunds all parties")
     public ResponseEntity<ApiResponse<TransactionResponse>> reverse(
+            Authentication auth,
             @PathVariable String reference,
             @RequestParam(required = false) String reason) {
-        TransactionResponse response = walletService.reverseTransaction(reference, reason);
+        TransactionResponse response =
+                walletService.reverseTransaction(auth.getName(), reference, reason);
         return ResponseEntity.ok(ApiResponse.success("Transaction reversed", response));
     }
 
