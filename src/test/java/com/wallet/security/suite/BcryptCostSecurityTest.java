@@ -31,17 +31,17 @@ class BcryptCostSecurityTest extends SecurityTestBase {
     }
 
     @Test
-    void bcryptCostFactorIsInTheReasonableRange() {
-        // BCrypt's $2[ay]$<cost>$<22-char salt><31-char hash> format. We
-        // parse the cost from a freshly-generated hash. 10-12 is the
-        // commonly-accepted band for online auth in 2025 — 8 is fast
-        // enough for offline brute-force in hours; 14 makes a single
-        // login take ~1 second.
+    void bcryptCostFactorIsPinnedAtExactlyTen() {
+        // Issue #15: the cost is now pinned explicitly at 10 in
+        // SecurityConfig (not left to Spring's default), so a Spring
+        // upgrade can't shift it. 10 is the documented balance between
+        // offline-attack resistance and the online login throughput
+        // ceiling captured in PERFORMANCE_TESTING.md.
         String hash = passwordEncoder.encode("any-test-password");
         assertThat(hash).startsWith("$2");
         int cost = Integer.parseInt(hash.split("\\$")[2]);
         assertThat(cost)
-                .as("BCrypt cost factor (currently %s) should be 10..12", cost)
-                .isBetween(10, 12);
+                .as("BCrypt cost factor (currently %s) must be pinned at 10", cost)
+                .isEqualTo(10);
     }
 }

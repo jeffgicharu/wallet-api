@@ -156,11 +156,45 @@ The system is **already over both p95 budgets at 50 VU** — read p95 is roughly
 
 20 VU running the full money-flow loop sustains **9 successful workflows per second** with a 98.7 % completion rate. The 1.3 % failure rate (36 of 2,735) maps roughly 1:1 to the 0.21 % HTTP failure rate (36 of 16,410) — every HTTP failure caused a workflow to fail, all in the transfer step where optimistic-lock contention surfaces as 409s.
 
+## Login throughput ceiling — accepted trade-off (issue #15)
+
+`POST /api/auth/login` is intentionally CPU-bound: it BCrypt-verifies the
+password at cost factor **10** (now pinned explicitly in
+`SecurityConfig`, no longer Spring's default — see
+`BcryptCostSecurityTest`). BCrypt being slow *is* the security property
+— it caps offline brute-force. Cost 10 is the deliberate balance: ~50–100
+ms of CPU per check, fast enough for interactive login, slow enough that
+an attacker can't cheaply grind stolen hashes.
+
+Consequence and ceiling:
+
+- A single core does on the order of **10–20 password verifications/sec**
+  at cost 10. With the small VPS's core count this is the hard ceiling on
+  *fresh-login* throughput, and it is **by design** — raising throughput
+  by lowering the cost would weaken every stored hash.
+- This is **not** a per-request tax. Only `/api/auth/login` and
+  `/api/auth/register` hit BCrypt. Every subsequent request authenticates
+  via the JWT in the `Authorization` header: `JwtAuthenticationFilter`
+  validates the token signature and loads the user — it **never**
+  re-hashes or re-verifies a password. So a client that logs in once and
+  reuses its token is unaffected by the BCrypt ceiling for the token's
+  lifetime.
+- The k6 `workflow.js` scenario mints a fresh JWT every iteration, which
+  is why it stresses login disproportionately versus real usage where a
+  token is reused across many calls.
+- The login rate limit (issue #21, 5/min/IP) further bounds how much
+  BCrypt load a single client can induce.
+
+Net: the login throughput ceiling is accepted and documented rather than
+"fixed" — the fix would be a security regression. If horizontal scale is
+ever needed, add API instances (BCrypt parallelises across cores/nodes)
+rather than lowering the cost factor.
+
 ## Top three bottlenecks
 
-The throughput ceiling at ~55 req/s is the same in both load and stress runs, which means the system saturates on a fixed resource and adding more VUs only grows the queue. Three plausible roots, ranked by suspected impact. All three are filed as GitHub issues with the `performance` label and **not fixed in this PR**.
+The throughput ceiling at ~55 req/s is the same in both load and stress runs, which means the system saturates on a fixed resource and adding more VUs only grows the queue. Originally three plausible roots, ranked by suspected impact:
 
-1. **[#15](https://github.com/jeffgicharu/wallet-api/issues/15) — Throughput plateaus at ~55 req/s independent of VU count; suspected `POST /api/auth/login` BCrypt saturation.** Every k6 VU calls login at the start of every iteration to mint a fresh JWT, and BCrypt at Spring Security's default cost factor (10) burns ~100 ms of CPU per password check. Throughput at 50 VU equals throughput at 200 VU at 300 VU; the system serves a fixed pipeline-width and queues the rest.
+1. **[#15](https://github.com/jeffgicharu/wallet-api/issues/15) — RESOLVED (accepted trade-off).** Throughput plateaus at ~55 req/s because every k6 iteration re-logs-in and BCrypt at cost 10 is CPU-bound by design. Cost factor pinned at 10; ceiling documented above; JWT-validated requests skip BCrypt entirely. Not a code defect — see the "Login throughput ceiling" section.
 2. **[#16](https://github.com/jeffgicharu/wallet-api/issues/16) — Read endpoints degrade to p95 1,172 ms at 50 VU; suspected HikariCP pool saturation.** Default pool size is 10. Once 10+ requests are mid-transaction, every read queues behind the same pool. Read p95 climbs from 10 ms at 1 VU to 1.2 s at 50 VU to 8 s at 200 VU.
 3. **[#17](https://github.com/jeffgicharu/wallet-api/issues/17) — Workflow test surfaces 0.26 % error rate from optimistic-lock contention on `/api/wallet/transfer`.** 20 concurrent VUs transferring to deterministically-spread recipients produce ~1 in 400 `OptimisticLockException` → 409s. Crosses the 0.1 % error-rate budget. Overlaps with [#10](https://github.com/jeffgicharu/wallet-api/issues/10) (idempotency-key retry semantics).
 

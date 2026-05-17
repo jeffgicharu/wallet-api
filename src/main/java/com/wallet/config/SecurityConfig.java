@@ -65,9 +65,18 @@ public class SecurityConfig {
         return reg;
     }
 
+    // BCrypt strength is pinned explicitly at 10 (issue #15). It happens
+    // to be Spring's current default, but pinning means a Spring upgrade
+    // can never silently change the cost — which would either weaken
+    // hashes or blow the documented login throughput ceiling. BCrypt is
+    // CPU-bound by design (that's the security property); the throughput
+    // ceiling and the fact that JWT-validated requests never re-hash a
+    // password are documented in PERFORMANCE_TESTING.md.
+    private static final int BCRYPT_STRENGTH = 10;
+
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+        return new BCryptPasswordEncoder(BCRYPT_STRENGTH);
     }
 
     @Bean
