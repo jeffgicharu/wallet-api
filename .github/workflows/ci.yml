@@ -205,8 +205,8 @@ jobs:
       - name: OWASP Dependency Check
         run: |
           mvn org.owasp:dependency-check-maven:check -B \
-            -DfailBuildOnCVSS=9 \
-            -DsuppressionFile=owasp-suppressions.xml || true
+            -DfailBuildOnCVSS=7 \
+            -DsuppressionFile=owasp-suppressions.xml
 
       - name: Upload OWASP report
         if: always()
