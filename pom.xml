@@ -132,6 +132,13 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- Flyway: versioned schema migrations (issue #3). Owns the
+             Postgres schema; Hibernate runs in validate mode there. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+
         <!-- OpenAPI / Swagger -->
         <dependency>
             <groupId>org.springdoc</groupId>
