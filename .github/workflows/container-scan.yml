@@ -30,7 +30,11 @@ jobs:
           output: 'trivy-fs.sarif'
           # Baseline is clean after the Boot 3.5.14 dependency upgrade
           # (issue #22): any new HIGH/CRITICAL filesystem finding now
-          # blocks the merge.
+          # blocks the merge. limit-severities-for-sarif makes the
+          # exit-code honour the severity filter — without it the SARIF
+          # formatter reports every severity and exit-code:1 trips on
+          # MEDIUM/LOW noise too.
+          limit-severities-for-sarif: true
           exit-code: '1'
 
       - name: Upload Trivy fs SARIF
@@ -60,7 +64,9 @@ jobs:
           format: 'sarif'
           output: 'trivy-image.sarif'
           # Clean after the Boot 3.5.14 upgrade (issue #22) — new
-          # HIGH/CRITICAL image findings now block the merge.
+          # HIGH/CRITICAL image findings now block the merge. See the
+          # filesystem step for why limit-severities-for-sarif is set.
+          limit-severities-for-sarif: true
           exit-code: '1'
 
       - name: Upload Trivy image SARIF
