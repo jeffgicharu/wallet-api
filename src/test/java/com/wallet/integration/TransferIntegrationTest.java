@@ -47,19 +47,20 @@ class TransferIntegrationTest extends IntegrationTestBase {
         String bob = login("bob");
         assertThat(readBalance(bob)).isEqualByComparingTo(new BigDecimal("5000.00"));
 
-        // 1 CREDIT from the setup deposit + 2 from the transfer (sender DEBIT
-        // for amount + fee, receiver CREDIT for amount). The separate FEE
-        // Transaction row carries no extra ledger entries in the current
-        // implementation — see WalletService line 199 onwards.
+        // Issue #11: setup deposit = 2 (wallet CREDIT + system DEBIT);
+        // transfer = sender DEBIT + receiver CREDIT + system CREDIT(fee)
+        // = 3. Total 5.
         Long ledgerCount = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM ledger_entries", Long.class);
-        assertThat(ledgerCount).isEqualTo(3L);
+        assertThat(ledgerCount).isEqualTo(5L);
 
+        // Transfer-linked entries: sender DEBIT + receiver CREDIT + the
+        // system_cash fee counterpart (posted against the TRANSFER txn).
         Long transferLedgerEntries = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM ledger_entries WHERE transaction_id IN " +
                 "(SELECT id FROM transactions WHERE type = 'TRANSFER')",
                 Long.class);
-        assertThat(transferLedgerEntries).isEqualTo(2L);
+        assertThat(transferLedgerEntries).isEqualTo(3L);
 
         // Daily-usage updated for the sender
         ResponseEntity<String> info = restTemplate.exchange(
