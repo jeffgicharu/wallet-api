@@ -14,6 +14,13 @@ spring:
       enabled: true
       path: /h2-console
 
+  # Flyway owns the Postgres schema (issue #3). The default profile runs
+  # against in-memory H2 for zero-setup local/unit runs; the baseline
+  # migration is Postgres-specific DDL, so here Hibernate create-drop
+  # builds the H2 schema and Flyway is disabled.
+  flyway:
+    enabled: false
+
   jpa:
     # Disabled (issue #5): the Open Session In View anti-pattern keeps a
     # Hibernate session open for the whole request so lazy associations
@@ -100,10 +107,20 @@ spring:
     console:
       enabled: false
 
+  # Flyway owns the schema (issue #3). baseline-on-migrate adopts an
+  # existing pre-Flyway database: a non-empty schema with no history
+  # table is baselined at version 1 (V1 skipped because it equals the
+  # already-deployed schema) and V2+ are applied. A fresh database has
+  # nothing to baseline, so V1 then V2 run normally.
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 1
+
   jpa:
     open-in-view: false   # issue #5 — see default profile note
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
@@ -144,10 +161,18 @@ spring:
     console:
       enabled: false
 
+  # Flyway owns the schema (issue #3); see the postgres profile note.
+  # validate fails fast at startup if the live schema has drifted from
+  # the entities instead of silently altering it.
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 1
+
   jpa:
     open-in-view: false   # issue #5 — see default profile note
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: false
     properties:
       hibernate:

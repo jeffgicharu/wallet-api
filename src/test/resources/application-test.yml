@@ -1,14 +1,20 @@
 spring:
+  # Issue #3: integration tests run against Testcontainers Postgres — the
+  # same engine the migrations target — so Flyway builds the schema here
+  # too. Every test context is therefore a fresh-database Flyway bootstrap
+  # that continuously verifies the V1/V2 baseline still matches the
+  # entities (ddl-auto=validate). No baseline-on-migrate: CI containers
+  # are always empty, so V1 then V2 run normally.
+  flyway:
+    enabled: true
   jpa:
     hibernate:
-      # ddl-auto=create-drop is acceptable for the test profile because the
-      # tests own the database schema lifecycle. Issue #3 tracks moving the
-      # production profile off ddl-auto in favour of a migration tool.
-      ddl-auto: create-drop
+      ddl-auto: validate
     show-sql: false
     properties:
       hibernate:
         format_sql: false
+        dialect: org.hibernate.dialect.PostgreSQLDialect
 
   h2:
     console:
