@@ -122,14 +122,12 @@ class ReversalIntegrationTest extends IntegrationTestBase {
     }
 
     /**
-     * Characterises a gap in the current implementation: reversals do NOT
-     * write to {@code audit_logs}. Only admin-side actions
-     * (reconcile, freeze / unfreeze, unlock-PIN) emit audit rows today. The
-     * test pins zero audit rows so a future change that wires reversal
-     * auditing in will fail this assertion and force the expectation up.
+     * Issue #12 fixed: a reversal now writes a REVERSAL row to
+     * audit_logs capturing the original reference, the actor, and the
+     * reason, so admins can see who reversed what and why.
      */
     @Test
-    void issueCharacterisation_reversalDoesNotWriteAuditLogToday() throws Exception {
+    void reversalWritesAuditLog() throws Exception {
         String alice = registerAndLogin("rev-audit");
         String depositRef = deposit(alice, 2000);
 
@@ -138,9 +136,15 @@ class ReversalIntegrationTest extends IntegrationTestBase {
                 HttpMethod.POST, authedHeaders(alice), String.class);
         assertThat(res.getStatusCode()).isEqualTo(HttpStatus.OK);
 
-        Long auditRows = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM audit_logs", Long.class);
-        assertThat(auditRows).isEqualTo(0L);
+        Long reversalRows = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM audit_logs WHERE action = 'REVERSAL' "
+                        + "AND target_id = ?", Long.class, depositRef);
+        assertThat(reversalRows).isEqualTo(1L);
+
+        String detail = jdbcTemplate.queryForObject(
+                "SELECT detail FROM audit_logs WHERE action = 'REVERSAL' "
+                        + "AND target_id = ?", String.class, depositRef);
+        assertThat(detail).contains("audit-trail-test");
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────
