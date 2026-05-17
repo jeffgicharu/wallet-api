@@ -9,7 +9,6 @@ import com.wallet.entity.User;
 import com.wallet.entity.Wallet;
 import com.wallet.enums.TransactionStatus;
 import com.wallet.enums.TransactionType;
-import com.wallet.exception.DuplicateTransactionException;
 import com.wallet.exception.InsufficientBalanceException;
 import com.wallet.repository.*;
 import org.junit.jupiter.api.BeforeEach;
@@ -96,16 +95,19 @@ class WalletServiceTest {
     }
 
     @Test
-    @DisplayName("Should reject duplicate deposit with same idempotency key")
-    void deposit_duplicateKey_throwsException() {
+    @DisplayName("Duplicate deposit key replays the original transaction (issue #10)")
+    void deposit_duplicateKey_replaysOriginal() {
         DepositRequest request = new DepositRequest();
         request.setAmount(new BigDecimal("1000.00"));
         request.setIdempotencyKey("dep-dup");
 
-        walletService.deposit("alice@test.com", request);
+        TransactionResponse first = walletService.deposit("alice@test.com", request);
+        TransactionResponse replay = walletService.deposit("alice@test.com", request);
 
-        assertThrows(DuplicateTransactionException.class,
-                () -> walletService.deposit("alice@test.com", request));
+        // Same reference, no double-credit.
+        assertEquals(first.getReference(), replay.getReference());
+        WalletResponse w = walletService.getWallet("alice@test.com");
+        assertEquals(0, new BigDecimal("1000.00").compareTo(w.getBalance()));
     }
 
     @Test
