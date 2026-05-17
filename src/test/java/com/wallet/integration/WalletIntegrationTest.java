@@ -197,6 +197,26 @@ class WalletIntegrationTest {
                 .andExpect(jsonPath("$.data.dailyTransferUsed").exists());
     }
 
+    @Test
+    @DisplayName("Statement returns 200 with resolved transaction ref (no lazy-init 500)")
+    void statement_afterDeposit_returnsLedgerWithTransactionReference() throws Exception {
+        // Regression: /statement serialised raw LedgerEntry entities whose
+        // @ManyToOne transaction/wallet are LAZY. With open-in-view
+        // disabled (issue #5) Jackson hit the proxies after the tx closed
+        // -> LazyInitializationException -> 500. The endpoint now maps to
+        // LedgerEntryResponse inside the read-only tx.
+        String token = registerAndGetToken("stmt@test.com", "+254711000099");
+        deposit(token, 4200, "stmt-dep-001");
+
+        mockMvc.perform(get("/api/wallet/statement")
+                .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.content[0].transactionReference").exists())
+                .andExpect(jsonPath("$.data.content[0].transactionType").value("DEPOSIT"))
+                .andExpect(jsonPath("$.data.content[0].entryType").value("CREDIT"))
+                .andExpect(jsonPath("$.data.content[0].balanceAfter").value(4200.0));
+    }
+
     // ─── Helpers ────────────────────────────────────────────────────
 
     private void register(String email, String phone) throws Exception {
