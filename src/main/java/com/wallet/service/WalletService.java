@@ -62,6 +62,7 @@ public class WalletService {
 
     // ─── DEPOSIT ────────────────────────────────────────────────────
 
+    @RetryOnLockConflict
     @Transactional
     public TransactionResponse deposit(String email, DepositRequest request) {
         var replay = findOriginal("DEP", request.getIdempotencyKey());
@@ -94,6 +95,7 @@ public class WalletService {
 
     // ─── WITHDRAW ───────────────────────────────────────────────────
 
+    @RetryOnLockConflict
     @Transactional
     public TransactionResponse withdraw(String email, WithdrawRequest request) {
         var replay = findOriginal("WDR", request.getIdempotencyKey());
@@ -136,6 +138,7 @@ public class WalletService {
 
     // ─── P2P TRANSFER ───────────────────────────────────────────────
 
+    @RetryOnLockConflict
     @Transactional
     public TransactionResponse transfer(String email, TransferRequest request) {
         var replay = findOriginal("TRF", request.getIdempotencyKey());
@@ -263,6 +266,7 @@ public class WalletService {
 
     // ─── REVERSAL ───────────────────────────────────────────────────
 
+    @RetryOnLockConflict
     @Transactional
     public TransactionResponse reverseTransaction(String actor, String reference, String reason) {
         Transaction original = transactionRepository.findByReference(reference)
