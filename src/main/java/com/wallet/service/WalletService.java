@@ -9,7 +9,6 @@ import com.wallet.entity.*;
 import com.wallet.enums.EntryType;
 import com.wallet.enums.TransactionStatus;
 import com.wallet.enums.TransactionType;
-import com.wallet.exception.DuplicateTransactionException;
 import com.wallet.exception.InsufficientBalanceException;
 import com.wallet.exception.InvalidPinException;
 import com.wallet.exception.ResourceNotFoundException;
@@ -61,7 +60,8 @@ public class WalletService {
 
     @Transactional
     public TransactionResponse deposit(String email, DepositRequest request) {
-        checkIdempotency(request.getIdempotencyKey());
+        var replay = findOriginal("DEP", request.getIdempotencyKey());
+        if (replay.isPresent()) return replay.get();
 
         Wallet wallet = getWalletByEmail(email);
         BigDecimal amount = request.getAmount();
@@ -90,7 +90,8 @@ public class WalletService {
 
     @Transactional
     public TransactionResponse withdraw(String email, WithdrawRequest request) {
-        checkIdempotency(request.getIdempotencyKey());
+        var replay = findOriginal("WDR", request.getIdempotencyKey());
+        if (replay.isPresent()) return replay.get();
 
         Wallet wallet = getWalletByEmail(email);
         User user = wallet.getUser();
@@ -129,7 +130,8 @@ public class WalletService {
 
     @Transactional
     public TransactionResponse transfer(String email, TransferRequest request) {
-        checkIdempotency(request.getIdempotencyKey());
+        var replay = findOriginal("TRF", request.getIdempotencyKey());
+        if (replay.isPresent()) return replay.get();
 
         Wallet senderWallet = getWalletByEmail(email);
         User sender = senderWallet.getUser();
@@ -396,13 +398,19 @@ public class WalletService {
         }
     }
 
-    private void checkIdempotency(String idempotencyKey) {
-        if (transactionRepository.existsByReference("DEP-" + idempotencyKey)
-                || transactionRepository.existsByReference("WDR-" + idempotencyKey)
-                || transactionRepository.existsByReference("TRF-" + idempotencyKey)) {
-            throw new DuplicateTransactionException(
-                    "Transaction with this idempotency key has already been processed");
-        }
+    /**
+     * Idempotent replay (issue #10): the transaction reference is the
+     * deterministic {PREFIX}-{key}. If a transaction already exists for
+     * this operation's key, return its original response so a retried
+     * request (e.g. the client never saw the first 2xx) gets the same
+     * result instead of a 409. The check is scoped to the operation's
+     * own prefix so a deposit and a transfer can reuse the same key.
+     */
+    private java.util.Optional<TransactionResponse> findOriginal(String prefix,
+                                                                 String idempotencyKey) {
+        return transactionRepository
+                .findByReference(prefix + "-" + idempotencyKey)
+                .map(this::toTransactionResponse);
     }
 
     private String generateReference(String prefix, String idempotencyKey) {

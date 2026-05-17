@@ -46,12 +46,24 @@ class RateLimitingSecurityTest extends SecurityTestBase {
                 "password", "WRONG"
         );
 
+        // The rate-limit bucket is keyed by client IP and shared across
+        // every test in this context. Sibling tests' logins would drain
+        // the shared localhost bucket before this test runs, so pin a
+        // unique X-Forwarded-For first hop — the filter keys a fresh
+        // bucket off it, isolating this assertion.
+        org.springframework.http.HttpHeaders h =
+                new org.springframework.http.HttpHeaders();
+        h.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+        h.set("X-Forwarded-For", "203.0.113.77");
+        org.springframework.http.HttpEntity<Object> req =
+                new org.springframework.http.HttpEntity<>(body, h);
+
         int firstThrottledAt = -1;
         ResponseEntity<String> throttled = null;
         for (int i = 1; i <= 20; i++) {
             ResponseEntity<String> res = restTemplate.exchange(
                     "/api/auth/login", HttpMethod.POST,
-                    jsonEntity(body), String.class);
+                    req, String.class);
             if (res.getStatusCode() == HttpStatus.TOO_MANY_REQUESTS) {
                 firstThrottledAt = i;
                 throttled = res;

@@ -69,37 +69,38 @@ class TransferIntegrationTest extends IntegrationTestBase {
     }
 
     /**
-     * The README claims that retrying with the same idempotency key
-     * "returns the original result instead of processing the transfer
-     * again." The current implementation rejects the retry with 409
-     * (DuplicateTransactionException) instead — which still preserves the
-     * key safety property (no double-debit) but is a different shape from
-     * the documented behaviour. This test pins the actual behaviour.
+     * Issue #10 fixed: retrying with the same idempotency key now
+     * returns the ORIGINAL transaction's 200 response (same reference)
+     * instead of a 409, while still preserving the no-double-debit
+     * safety property.
      */
     @Test
-    void shouldRejectDuplicateIdempotencyKeyAndNotDoubleCharge() throws Exception {
+    void duplicateIdempotencyKeyReplaysOriginalResponse() throws Exception {
         String alice = registerAndLogin("idem-a");
         String bobPhone = TestData.uniquePhone();
         register("idem-b", bobPhone);
         deposit(alice, 50000);
         String key = TestData.uniqueKey("idem-trf");
 
-        // First call — succeeds
         ResponseEntity<String> first = restTemplate.exchange(
                 "/api/wallet/transfer", HttpMethod.POST,
                 authedJsonEntity(alice, transferRequestWithKey(bobPhone, 5000, "1234", key)),
                 String.class);
         assertThat(first.getStatusCode()).isEqualTo(HttpStatus.OK);
+        String firstRef = objectMapper.readTree(first.getBody())
+                .path("data").path("reference").asText();
 
-        // Second call with same key — currently rejected as duplicate
+        // Retry with the same key — replays the original 200 + same ref.
         ResponseEntity<String> second = restTemplate.exchange(
                 "/api/wallet/transfer", HttpMethod.POST,
                 authedJsonEntity(alice, transferRequestWithKey(bobPhone, 5000, "1234", key)),
                 String.class);
-        assertThat(second.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(second.getStatusCode()).isEqualTo(HttpStatus.OK);
+        String secondRef = objectMapper.readTree(second.getBody())
+                .path("data").path("reference").asText();
+        assertThat(secondRef).isEqualTo(firstRef);
 
-        // Critical safety property: no double-debit. Balance reflects exactly
-        // ONE transfer of 5000 + 50 fee.
+        // No double-debit: exactly ONE transfer of 5000 + 50 fee.
         assertThat(readBalance(alice)).isEqualByComparingTo(new BigDecimal("44950.00"));
     }
 

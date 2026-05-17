@@ -127,8 +127,9 @@ public class WalletApiProviderPactTest {
         registerBob();
         loginAsAlice();
         deposit(50000, "state-dep-dup-50k");
-        // Seed a transfer with the exact idempotency key the consumer will
-        // retry. The retry triggers DuplicateTransactionException → 409.
+        // Seed the first transfer with the exact idempotency key the
+        // consumer will retry. Issue #10 fixed: the retry now replays
+        // this original transaction's 200 response (same reference).
         transferAliceToBob(5000, "1234", "idem-pact-dup");
     }
 
