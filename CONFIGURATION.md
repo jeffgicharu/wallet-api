@@ -27,6 +27,7 @@ SPRING_PROFILES_ACTIVE=prod java -jar wallet-api.jar
 | `APP_JWT_SECRET` | **none — required in every profile** | HMAC-SHA key for signing JWTs. The application fails to start with a clear error if this is unset or blank (issue #4 — no hard-coded fallback). Use at least 32 bytes of high-entropy random data, e.g. `openssl rand -hex 32`. |
 | `APP_JWT_EXPIRATION_MS` | `86400000` (24 h) | Token lifetime in milliseconds. |
 | `APP_CORS_ALLOWED_ORIGINS` | `http://localhost:3002` (default and `postgres` profiles) | Comma-separated list of origins allowed to call the API from a browser. **Required in `prod`** — the deployed frontend's public URL belongs here, e.g. `https://wallet.jeffgicharu.com`. Multiple origins separated by commas: `https://wallet.jeffgicharu.com,https://staging.wallet.jeffgicharu.com`. |
+| `DB_POOL_MAX_SIZE` | `40` (postgres + prod profiles) | HikariCP `maximum-pool-size`. Raised from the implicit default of 10 (issue #16 — read p95 degraded to 1172ms at 50 VU on pool saturation). Tune per the deployed DB's `max_connections`. |
 | `SERVER_PORT` | `8080` | HTTP listen port. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4318` (only in `postgres` profile) | OTLP endpoint for traces. Disabled by default unless an OTel collector is reachable. |
 

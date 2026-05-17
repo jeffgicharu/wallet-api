@@ -91,6 +91,10 @@ spring:
     driver-class-name: org.postgresql.Driver
     username: ${SPRING_DATASOURCE_USERNAME:postgres}
     password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+    hikari:
+      # Issue #16: the default pool of 10 saturated under load (read p95
+      # 1172ms at 50 VU). 40 is env-tunable for the deployed instance.
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:40}
 
   h2:
     console:
@@ -132,6 +136,9 @@ spring:
     driver-class-name: org.postgresql.Driver
     username: ${SPRING_DATASOURCE_USERNAME}
     password: ${SPRING_DATASOURCE_PASSWORD}
+    hikari:
+      # Issue #16 — env-tunable; default 40 (was the implicit 10).
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:40}
 
   h2:
     console:
