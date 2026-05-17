@@ -12,6 +12,13 @@ services:
       # hard-coded fallback (issue #4); this value is for the local
       # docker-compose stack only — never a deploy secret.
       APP_JWT_SECRET: ${APP_JWT_SECRET:-local-compose-jwt-secret-not-for-deploy-deadbeef-cafe-0123456789}
+      # This stack backs local dev AND the wallet-app e2e-local CI job,
+      # which logs in alice/bob/carol + seeds repeatedly from one IP.
+      # The production 5/min login rate limit (issue #21) would throttle
+      # that harness; raise the ceiling here (the rate limit itself is
+      # covered by wallet-api's RateLimitingSecurityTest). Production
+      # keeps 5/min. Overridable from the host env.
+      SECURITY_LOGIN_RATE_LIMIT_MAX_ATTEMPTS: ${SECURITY_LOGIN_RATE_LIMIT_MAX_ATTEMPTS:-1000000}
     depends_on:
       postgres:
         condition: service_healthy
