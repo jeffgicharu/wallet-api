@@ -2,6 +2,8 @@ package com.wallet.config;
 
 import com.wallet.security.JwtAuthenticationFilter;
 import com.wallet.security.LoginRateLimitFilter;
+import com.wallet.security.RestAccessDeniedHandler;
+import com.wallet.security.RestAuthenticationEntryPoint;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -25,6 +27,8 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtFilter;
     private final LoginRateLimitFilter loginRateLimitFilter;
+    private final RestAuthenticationEntryPoint authenticationEntryPoint;
+    private final RestAccessDeniedHandler accessDeniedHandler;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -34,8 +38,12 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
+                    "/",
                     "/api/auth/**",
+                    "/swagger-ui.html",
                     "/swagger-ui/**",
+                    "/api-docs",
+                    "/api-docs.yaml",
                     "/api-docs/**",
                     "/h2-console/**",
                     "/actuator/**"
@@ -43,6 +51,9 @@ public class SecurityConfig {
                 .requestMatchers("/api/admin/**").authenticated()
                 .anyRequest().authenticated()
             )
+            .exceptionHandling(ex -> ex
+                .authenticationEntryPoint(authenticationEntryPoint)
+                .accessDeniedHandler(accessDeniedHandler))
             .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()))
             // Rate-limit /api/auth/login (issue #21) before auth processing.
             .addFilterBefore(loginRateLimitFilter, UsernamePasswordAuthenticationFilter.class)

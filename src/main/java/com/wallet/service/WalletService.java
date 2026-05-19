@@ -550,8 +550,12 @@ public class WalletService {
                 .currency(wallet.getCurrency())
                 .active(wallet.isActive())
                 .dailyTransferLimit(DAILY_TRANSFER_LIMIT)
+                // Scale to 2 dp so the field is always "0.00" / "5000.00"
+                // and never a bare "0" — the JSON stays money-shaped and
+                // consistent with balance and every other amount.
                 .dailyTransferUsed(transactionRepository.sumTransfersSince(
-                        wallet.getId(), java.time.LocalDate.now().atStartOfDay()))
+                                wallet.getId(), java.time.LocalDate.now().atStartOfDay())
+                        .setScale(2, RoundingMode.HALF_UP))
                 .createdAt(wallet.getCreatedAt())
                 .build();
     }

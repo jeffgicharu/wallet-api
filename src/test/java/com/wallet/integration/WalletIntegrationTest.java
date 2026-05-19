@@ -82,10 +82,12 @@ class WalletIntegrationTest {
     }
 
     @Test
-    @DisplayName("Unauthenticated request returns 403")
-    void wallet_noToken_returns403() throws Exception {
+    @DisplayName("Unauthenticated request returns a clean JSON 401")
+    void wallet_noToken_returns401() throws Exception {
         mockMvc.perform(get("/api/wallet"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").exists());
     }
 
     @Test

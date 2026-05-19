@@ -109,12 +109,11 @@ class AuthorizationIntegrationTest extends IntegrationTestBase {
         ResponseEntity<String> audit = restTemplate.exchange(
                 "/api/admin/audit", HttpMethod.GET, null, String.class);
 
-        // Spring Security's default response when no AuthenticationEntryPoint
-        // is configured for missing-token is 403 Forbidden (not 401). The
-        // important guarantee is that the controller is never reached.
-        assertThat(users.getStatusCode()).isIn(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN);
-        assertThat(stats.getStatusCode()).isIn(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN);
-        assertThat(audit.getStatusCode()).isIn(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN);
+        // A missing token never reaches the controller: the custom
+        // RestAuthenticationEntryPoint returns a clean JSON 401.
+        assertThat(users.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(stats.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(audit.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
     @Test
