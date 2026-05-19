@@ -117,11 +117,10 @@ class AuthIntegrationTest extends IntegrationTestBase {
         ResponseEntity<String> res = restTemplate.exchange(
                 "/api/wallet", HttpMethod.GET, authedHeaders(expired), String.class);
 
-        // The JwtAuthenticationFilter rejects the parse → SecurityFilterChain
-        // returns the standard "no auth" status. With this app's config that
-        // surfaces as 403 (no AuthenticationEntryPoint customisation). The
-        // important assertion is "the request did not reach the controller."
-        assertThat(res.getStatusCode()).isIn(HttpStatus.UNAUTHORIZED, HttpStatus.FORBIDDEN);
+        // The JwtAuthenticationFilter rejects the expired token's parse, so
+        // no authentication is set and the request never reaches the
+        // controller. The custom RestAuthenticationEntryPoint returns 401.
+        assertThat(res.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
     @Test

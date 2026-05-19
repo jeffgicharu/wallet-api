@@ -11,6 +11,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.stream.Collectors;
 
@@ -67,6 +68,17 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleNotFound(ResourceNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ApiResponse.error(ex.getMessage()));
+    }
+
+    // An unknown path (typo, probing) reaches the dispatcher as a
+    // NoResourceFoundException. Without this it fell through to the
+    // catch-all below and surfaced as a 500 "An unexpected error
+    // occurred" — a not-found masquerading as a server error. Map it to
+    // a clean JSON 404 instead.
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNoResource(NoResourceFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error("The requested resource was not found."));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
