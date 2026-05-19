@@ -16,13 +16,17 @@ This is a mobile money wallet, similar to M-Pesa's backend. Users register, get 
 
 Demo accounts (state resets daily at 03:00 UTC):
 
-| Email | Password | PIN | Approx. balance |
-|---|---|---|---|
-| `alice@demo.local` | `pass1234` | `1234` | KES 50,000 |
-| `bob@demo.local`   | `pass1234` | `1234` | KES 25,000 |
-| `carol@demo.local` | `pass1234` | `1234` | KES 10,000 |
+| Email | Password | PIN |
+|---|---|---|
+| `alice@demo.local` | `pass1234` | `1234` |
+| `bob@demo.local`   | `pass1234` | `1234` |
+| `carol@demo.local` | `pass1234` | `1234` |
 
-This is a public demo. Do not use real PII, real money, or real credentials.
+Each account is seeded with a working balance and roughly 90 days of
+varied history — deposits, cash-outs, peer transfers to and from named
+contacts, transfer fees, and a reversal — all produced through the
+public API so the ledger reconciles. This is a public demo: do not use
+real PII, real money, or real credentials.
 
 The interesting part isn't the CRUD. It's the things that go wrong with money. What happens when a transfer request is sent twice because of a network glitch? What if two transfers hit the same wallet at the same time? What if someone brute-forces a PIN? What if a transaction needs to be reversed after the fact? What if the books don't balance at end of day? This project handles all of that.
 
@@ -143,17 +147,22 @@ curl http://localhost:8080/api/admin/reconcile/wallet/+254700000001 \
 
 ## Built With
 
-Spring Boot 3.2, Java 17, Spring Security + JWT, Spring Data JPA, PostgreSQL (H2 for dev), Docker, Kubernetes + Helm, GitHub Actions CI, Prometheus metrics.
+Spring Boot 3.5, Java 17, Spring Security + JWT, Spring Data JPA, Flyway, PostgreSQL (H2 for dev), Docker, Kubernetes + Helm, GitHub Actions CI, Prometheus metrics.
 
 ## Tests
 
 ```bash
-mvn test   # 21 tests
+mvn verify   # unit + Testcontainers integration + security suite
 ```
 
-**Unit tests (9):** deposit and balance update, withdrawal with valid/invalid PIN, insufficient balance, P2P transfer with fee calculation, idempotency deduplication, self-transfer prevention, unknown recipient handling.
-
-**Integration tests (12):** full auth flow, duplicate registration rejection, deposit through HTTP, transfer through HTTP, unauthenticated request rejection, transaction lookup by reference, deposit reversal with balance verification, admin stats, wallet freeze blocking transactions, per-wallet reconciliation, wrong PIN through HTTP, daily limit info in wallet response.
+The suite spans service-level unit tests, full HTTP integration tests
+on a Testcontainers PostgreSQL instance (auth, deposit, withdraw,
+transfer, reversal, reconciliation, idempotency replay, frozen-wallet
+and daily-limit enforcement), a dedicated security suite (JWT, cross-user
+isolation, injection, rate limiting, sensitive-data exposure), and
+consumer-driven Pact provider verification against the SPA contract.
+Current counts, coverage, and the mutation score are tracked in
+[`QUALITY_DASHBOARD.md`](./QUALITY_DASHBOARD.md).
 
 ## Performance Testing
 
