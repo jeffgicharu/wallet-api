@@ -9,7 +9,7 @@ import java.math.BigDecimal;
 public class WithdrawRequest {
 
     @NotNull(message = "Amount is required")
-    @DecimalMin(value = "10.00", message = "Minimum withdrawal is 10.00")
+    @DecimalMin(value = "10.00", message = "Minimum withdrawal is KES 10.00")
     private BigDecimal amount;
 
     @NotBlank(message = "PIN is required")

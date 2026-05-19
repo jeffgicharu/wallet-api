@@ -279,11 +279,13 @@ def main():
     values = []
     for tid, off in zip(ids, offsets):
         ts = start + timedelta(seconds=off)
-        values.append(f"({tid},'{ts:%Y-%m-%d %H:%M:%S}+00')")
+        # created_at is `timestamp without time zone` (UTC by convention
+        # here); emit a plain UTC literal and cast text -> timestamp.
+        values.append(f"({tid},'{ts:%Y-%m-%d %H:%M:%S}')")
     chunk = 200
     for i in range(0, len(values), chunk):
         vs = ",".join(values[i:i + chunk])
-        psql(f"UPDATE transactions t SET created_at = v.ts "
+        psql(f"UPDATE transactions t SET created_at = v.ts::timestamp "
              f"FROM (VALUES {vs}) AS v(id, ts) WHERE t.id = v.id;")
     psql("UPDATE ledger_entries le SET created_at = t.created_at "
          "FROM transactions t WHERE le.transaction_id = t.id;")

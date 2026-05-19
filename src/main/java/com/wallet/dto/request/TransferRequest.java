@@ -13,7 +13,7 @@ public class TransferRequest {
     private String recipientPhone;
 
     @NotNull(message = "Amount is required")
-    @DecimalMin(value = "10.00", message = "Minimum transfer is 10.00")
+    @DecimalMin(value = "10.00", message = "Minimum transfer is KES 10.00")
     private BigDecimal amount;
 
     @NotBlank(message = "PIN is required")
