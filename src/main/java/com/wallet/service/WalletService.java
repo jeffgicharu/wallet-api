@@ -110,9 +110,10 @@ public class WalletService {
         BigDecimal balanceBefore = wallet.getBalance();
 
         if (balanceBefore.compareTo(amount) < 0) {
-            throw new InsufficientBalanceException(
-                    String.format("Insufficient balance. Available: %s %s, Requested: %s %s",
-                            wallet.getCurrency(), balanceBefore, wallet.getCurrency(), amount));
+            throw new InsufficientBalanceException(String.format(
+                    "Insufficient balance. Available: %s, Requested: %s",
+                    com.wallet.util.Money.format(balanceBefore),
+                    com.wallet.util.Money.format(amount)));
         }
 
         wallet.setBalance(balanceBefore.subtract(amount));
@@ -171,8 +172,10 @@ public class WalletService {
         if (todayTotal.add(amount).compareTo(DAILY_TRANSFER_LIMIT) > 0) {
             BigDecimal remaining = DAILY_TRANSFER_LIMIT.subtract(todayTotal).max(BigDecimal.ZERO);
             throw new IllegalArgumentException(String.format(
-                    "Daily transfer limit exceeded. Limit: %s, Used today: %s, Remaining: %s",
-                    DAILY_TRANSFER_LIMIT, todayTotal, remaining));
+                    "Daily transfer limit exceeded. Limit: %s, used today: %s, remaining: %s",
+                    com.wallet.util.Money.format(DAILY_TRANSFER_LIMIT),
+                    com.wallet.util.Money.format(todayTotal),
+                    com.wallet.util.Money.format(remaining)));
         }
 
         // Calculate fee
@@ -182,10 +185,12 @@ public class WalletService {
 
         BigDecimal senderBalanceBefore = senderWallet.getBalance();
         if (senderBalanceBefore.compareTo(totalDebit) < 0) {
-            throw new InsufficientBalanceException(
-                    String.format("Insufficient balance. Available: %s %s, Required: %s %s (amount: %s + fee: %s)",
-                            senderWallet.getCurrency(), senderBalanceBefore,
-                            senderWallet.getCurrency(), totalDebit, amount, fee));
+            throw new InsufficientBalanceException(String.format(
+                    "Insufficient balance. Available: %s, Required: %s (amount: %s + fee: %s)",
+                    com.wallet.util.Money.format(senderBalanceBefore),
+                    com.wallet.util.Money.format(totalDebit),
+                    com.wallet.util.Money.format(amount),
+                    com.wallet.util.Money.format(fee)));
         }
 
         // Debit sender
