@@ -37,6 +37,22 @@
     </Match>
 
     <!--
+        The REST auth entry point and access-denied handler hold the
+        Spring-managed singleton ObjectMapper injected via the
+        constructor. Same rationale as SecurityConfig above: Spring owns
+        the bean's lifecycle, so a defensive copy would be pointless (and
+        ObjectMapper is thread-safe once configured). Storing the shared
+        reference is the intended Spring DI shape.
+    -->
+    <Match>
+        <Or>
+            <Class name="com.wallet.security.RestAuthenticationEntryPoint"/>
+            <Class name="com.wallet.security.RestAccessDeniedHandler"/>
+        </Or>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+
+    <!--
         CSRF is intentionally disabled. The wallet-api is a stateless
         REST API authenticated by JWT bearer tokens carried in the
         Authorization header; CSRF protection is meaningful only for
